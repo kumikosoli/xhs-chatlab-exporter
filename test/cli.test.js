@@ -17,11 +17,14 @@ test("parses the main export options", () => {
     "Yau Lee",
     "--max-pages",
     "42",
+    "--message-types",
+    "0,1,5,25",
     "--force"
   ]);
   assert.equal(options.conversation, "测试群");
   assert.equal(options.kind, "group");
   assert.equal(options.maxPages, 42);
+  assert.deepEqual(options.messageTypes, [0, 1, 5, 25]);
   assert.equal(options.force, true);
 });
 
@@ -36,4 +39,14 @@ test("rejects invalid kinds and missing option values", () => {
     /--kind/
   );
   assert.throws(() => parseArgs(["--conversation"]), /缺少参数/);
+  assert.throws(
+    () =>
+      parseArgs([
+        "--conversation",
+        "A",
+        "--message-types",
+        "0,12345"
+      ]),
+    /无效/
+  );
 });

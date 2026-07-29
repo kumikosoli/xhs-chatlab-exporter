@@ -173,6 +173,7 @@ export function toChatLab(rawMessages, {
   selfName = "我",
   startTimestamp = null,
   endTimestamp = null,
+  includeMessageTypes = null,
   exportedAt = Math.floor(Date.now() / 1000)
 }) {
   if (!["private", "group"].includes(conversationKind)) {
@@ -184,6 +185,8 @@ export function toChatLab(rawMessages, {
     conversationName,
     selfName
   });
+  const includedTypes =
+    includeMessageTypes === null ? null : new Set(includeMessageTypes);
   const seenMessageIds = new Set();
   const members = new Map();
 
@@ -202,6 +205,9 @@ export function toChatLab(rawMessages, {
       seenMessageIds.add(raw.messageId);
       const sender = resolveSender(raw);
       const type = chatLabType(raw);
+      if (includedTypes !== null && !includedTypes.has(type)) {
+        return [];
+      }
       if (sender.platformId !== "SYSTEM") {
         const member = {
           platformId: sender.platformId,
@@ -243,7 +249,7 @@ export function toChatLab(rawMessages, {
     chatlab: {
       version: "0.0.2",
       exportedAt,
-      generator: "xhs-chatlab-exporter/0.1.0"
+      generator: "xhs-chatlab-exporter/0.2.0"
     },
     meta,
     members: Array.from(members.values()),

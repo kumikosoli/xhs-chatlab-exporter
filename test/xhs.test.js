@@ -171,6 +171,38 @@ test("applies an inclusive time range and rejects empty output", () => {
   );
 });
 
+test("filters exported content by ChatLab message type", () => {
+  const result = toChatLab(
+    [
+      raw(),
+      raw({
+        sequence: 1,
+        messageId: `${PRIVATE_PREFIX}.1ea579d2c2ae656`,
+        contentType: "2",
+        media: [
+          {
+            kind: "image",
+            src: "https://example.invalid/message.jpg",
+            alt: "图片"
+          }
+        ],
+        text: ""
+      })
+    ],
+    {
+      conversationId: "62a4ea3d0000000021022482",
+      conversationKind: "private",
+      conversationName: "CandleST",
+      includeMessageTypes: [1],
+      exportedAt: 1_800_000_000
+    }
+  );
+
+  assert.equal(result.messages.length, 1);
+  assert.equal(result.messages[0].type, 1);
+  assert.match(result.messages[0].content, /message\.jpg/);
+});
+
 test("validator catches member references and duplicate message IDs", () => {
   const invalid = {
     chatlab: { version: "0.0.2", exportedAt: 1_800_000_000 },

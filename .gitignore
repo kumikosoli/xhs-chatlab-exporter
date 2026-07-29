@@ -1,4 +1,5 @@
 .DS_Store
 node_modules/
+exports/
 *.chatlab.json
 !examples/example.chatlab.json

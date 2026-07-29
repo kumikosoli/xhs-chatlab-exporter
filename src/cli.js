@@ -20,7 +20,7 @@ import {
 } from "./time.js";
 import { toChatLab } from "./xhs.js";
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 const VALUE_OPTIONS = new Map([
   ["--conversation", "conversation"],
   ["-c", "conversation"],
@@ -31,6 +31,7 @@ const VALUE_OPTIONS = new Map([
   ["--output", "output"],
   ["-o", "output"],
   ["--kind", "kind"],
+  ["--message-types", "messageTypes"],
   ["--tab-url-contains", "tabUrlContains"],
   ["--max-pages", "maxPages"],
   ["--settle-ms", "settleMilliseconds"]
@@ -51,6 +52,8 @@ xhs-chat-export — 将小红书网页版聊天导出为 ChatLab JSON
       --self-name <名称>    ChatLab 中自己的名称（默认“我”）
       --kind <auto|private|group>
                             自动识别，或校验指定的会话类型
+      --message-types <列表>
+                            仅导出指定 ChatLab 类型，如 0,1,5,25
   -o, --output <文件>       输出 .json 路径
       --max-pages <数量>    最多向上加载的历史页数（默认 500）
       --settle-ms <毫秒>    每页最短等待时间（默认 800）
@@ -86,6 +89,7 @@ export function parseArgs(argv) {
     selfName: "我",
     output: null,
     kind: "auto",
+    messageTypes: null,
     tabUrlContains: "xiaohongshu.com/chat/",
     maxPages: 500,
     settleMilliseconds: 800,
@@ -134,13 +138,28 @@ export function parseArgs(argv) {
   if (!["auto", "private", "group"].includes(options.kind)) {
     throw new Error('--kind 必须是 "auto"、"private" 或 "group"');
   }
+  if (options.messageTypes !== null) {
+    const parsedTypes = String(options.messageTypes)
+      .split(",")
+      .map((value) => Number(value.trim()));
+    const allowedTypes = new Set([
+      0, 1, 2, 3, 4, 5, 7, 8, 20, 21, 22, 23, 24, 25, 26, 27, 80, 81, 99
+    ]);
+    if (
+      parsedTypes.length === 0 ||
+      parsedTypes.some((value) => !Number.isInteger(value) || !allowedTypes.has(value))
+    ) {
+      throw new Error("--message-types 包含无效的 ChatLab 消息类型");
+    }
+    options.messageTypes = Array.from(new Set(parsedTypes));
+  }
   if (!options.help && !options.version && !options.list && !options.conversation) {
     throw new Error("请使用 --conversation 指定联系人/群聊，或使用 --list 查看会话");
   }
   return options;
 }
 
-async function scanConversations(bridge) {
+export async function scanConversations(bridge) {
   const collected = new Map();
   await bridge.runPageFunction(scrollConversationListPage, { position: "top" });
   await sleep(200);
@@ -465,7 +484,8 @@ export async function run(argv) {
     conversationName: state.name || target.name,
     selfName: options.selfName,
     startTimestamp,
-    endTimestamp
+    endTimestamp,
+    includeMessageTypes: options.messageTypes
   });
 
   const defaultName = `xiaohongshu-${safeFilePart(state.name || target.name)}.chatlab.json`;
