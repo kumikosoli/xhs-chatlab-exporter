@@ -1,7 +1,7 @@
 {
   "name": "xhs-chatlab-exporter",
-  "version": "0.2.0",
-  "description": "Export Xiaohongshu Web chats from a signed-in Safari tab to ChatLab JSON.",
+  "version": "0.3.0",
+  "description": "Export Xiaohongshu Web chats, avatars and media from a signed-in Safari tab to ChatLab.",
   "type": "module",
   "private": true,
   "bin": {
@@ -12,7 +12,7 @@
     "export": "node ./bin/xhs-chat-export.js",
     "web": "node ./bin/xhs-chat-web.js",
     "test": "node --test",
-    "check": "node --check ./bin/xhs-chat-export.js && node --check ./bin/xhs-chat-web.js && node --check ./src/cli.js && node --check ./src/server.js && node --check ./web/app.js"
+    "check": "node --check ./bin/xhs-chat-export.js && node --check ./bin/xhs-chat-web.js && node --check ./src/cli.js && node --check ./src/media.js && node --check ./src/server.js && node --check ./web/app.js"
   },
   "engines": {
     "node": ">=20"

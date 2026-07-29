@@ -29,6 +29,8 @@ const elements = {
   endDate: document.querySelector("#end-date"),
   selfName: document.querySelector("#self-name"),
   contentChoices: Array.from(document.querySelectorAll("[data-types]")),
+  embedAvatars: document.querySelector("#embed-avatars"),
+  downloadMedia: document.querySelector("#download-media"),
   startExport: document.querySelector("#start-export"),
   jobPanel: document.querySelector("#job-panel"),
   progressCount: document.querySelector("#progress-count"),
@@ -278,14 +280,48 @@ function stageCopy(job) {
   }
   if (job.status === "completed") {
     const result = job.result;
+    const resourceSummary = [
+      result.embeddedAvatarCount
+        ? `头像 ${result.embeddedAvatarCount} 个`
+        : "",
+      result.media
+        ? `媒体 ${result.media.downloaded}/${result.media.total}`
+        : ""
+    ].filter(Boolean);
     return {
-      kicker: "ChatLab JSON 已就绪",
+      kicker:
+        result.packageType === "zip"
+          ? "本地资源归档已就绪"
+          : "ChatLab JSON 已就绪",
       title: `${result.messageCount.toLocaleString()} 条消息已安全落盘`,
       detail: `${result.memberCount} 位成员 · ${formatTimestamp(
         result.firstTimestamp
       )} 至 ${formatTimestamp(result.lastTimestamp)} · ${formatBytes(
         result.fileSize
-      )}`
+      )}${resourceSummary.length ? ` · ${resourceSummary.join(" · ")}` : ""}`
+    };
+  }
+  if (job.stage === "embedding-avatars") {
+    const progress = job.avatarProgress || { completed: 0, total: 0 };
+    return {
+      kicker: "正在保存头像",
+      title: `已处理 ${progress.completed}/${progress.total} 个头像`,
+      detail: "头像会转换成 Data URL，直接嵌入 ChatLab 成员信息。"
+    };
+  }
+  if (job.stage === "downloading-media") {
+    const progress = job.assetProgress || { completed: 0, total: 0 };
+    return {
+      kicker: "正在下载聊天媒体",
+      title: `已处理 ${progress.completed}/${progress.total} 个资源`,
+      detail: "图片、表情和卡片封面正在保存到本地归档。"
+    };
+  }
+  if (job.stage === "packaging") {
+    return {
+      kicker: "正在封装 ZIP",
+      title: "正在整理 JSON、媒体与 manifest",
+      detail: "马上完成，请不要关闭页面。"
     };
   }
   if (job.stage === "loading-history") {
@@ -321,7 +357,11 @@ function renderJob(job) {
       ? "✓"
       : job.status === "failed"
         ? "!"
-        : job.loadedMessages > 9999
+        : job.stage === "downloading-media"
+          ? String(job.assetProgress?.completed || "···")
+          : job.stage === "embedding-avatars"
+            ? String(job.avatarProgress?.completed || "···")
+            : job.loadedMessages > 9999
           ? "9k+"
           : String(job.loadedMessages || "···");
   const copy = stageCopy(job);
@@ -331,6 +371,8 @@ function renderJob(job) {
   elements.resultActions.hidden = job.status !== "completed";
   if (job.status === "completed") {
     elements.downloadResult.href = job.result.downloadUrl;
+    elements.downloadResult.textContent =
+      job.result.packageType === "zip" ? "下载 ZIP" : "下载 JSON";
   }
   updateSubmitState();
 }
@@ -374,7 +416,9 @@ async function startExport(event) {
     start: elements.startDate.value,
     end: elements.endDate.value,
     messageTypes,
-    maxPages: elements.allHistory.checked ? 2000 : 500
+    maxPages: elements.allHistory.checked ? 2000 : 500,
+    embedAvatars: elements.embedAvatars.checked,
+    downloadMedia: elements.downloadMedia.checked
   };
   try {
     elements.startExport.disabled = true;

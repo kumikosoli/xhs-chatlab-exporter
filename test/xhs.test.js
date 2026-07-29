@@ -203,6 +203,66 @@ test("filters exported content by ChatLab message type", () => {
   assert.match(result.messages[0].content, /message\.jpg/);
 });
 
+test("embeds avatar Data URLs and records local media paths", () => {
+  const avatarUrl = "https://example.invalid/avatar/candle-token";
+  const imageUrl = "https://example.invalid/message.jpg";
+  const avatarData = "data:image/png;base64,iVBORw0KGgo=";
+  const result = toChatLab(
+    [
+      raw({
+        direction: "left",
+        senderName: "CandleST",
+        avatar: avatarUrl,
+        contentType: "2",
+        text: "",
+        media: [
+          {
+            kind: "image",
+            src: imageUrl,
+            archivePath: "media/images/local.jpg",
+            alt: "图片"
+          }
+        ]
+      })
+    ],
+    {
+      conversationId: "62a4ea3d0000000021022482",
+      conversationKind: "private",
+      conversationName: "CandleST",
+      avatarDataByUrl: new Map([[avatarUrl, avatarData]]),
+      exportedAt: 1_800_000_000
+    }
+  );
+
+  assert.equal(result.members[0].avatar, avatarData);
+  assert.match(result.messages[0].content, /media\/images\/local\.jpg/);
+  assert.match(result.messages[0].content, /https:\/\/example\.invalid\/message\.jpg/);
+});
+
+test("embeds a group avatar in ChatLab metadata", () => {
+  const groupAvatar = "https://example.invalid/group.png";
+  const dataUrl = "data:image/png;base64,AAAA";
+  const result = toChatLab(
+    [
+      raw({
+        messageId: "137999752897687566.1ea6a14e8334cca",
+        direction: "left",
+        senderName: "成员",
+        avatar: ""
+      })
+    ],
+    {
+      conversationId: "137999752897687566",
+      conversationKind: "group",
+      conversationName: "测试群",
+      conversationAvatar: groupAvatar,
+      avatarDataByUrl: new Map([[groupAvatar, dataUrl]]),
+      exportedAt: 1_800_000_000
+    }
+  );
+  assert.equal(result.meta.groupAvatar, dataUrl);
+});
+
 test("validator catches member references and duplicate message IDs", () => {
   const invalid = {
     chatlab: { version: "0.0.2", exportedAt: 1_800_000_000 },

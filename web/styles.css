@@ -583,7 +583,8 @@ fieldset {
 }
 
 .choice-row input,
-.content-choice input {
+.content-choice input,
+.asset-choice input {
   position: absolute;
   opacity: 0;
   pointer-events: none;
@@ -709,6 +710,71 @@ fieldset {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.asset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.asset-choice {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: rgba(244, 241, 235, 0.45);
+  cursor: pointer;
+}
+
+.asset-choice:has(input:checked) {
+  border-color: rgba(27, 123, 83, 0.42);
+  background: rgba(27, 123, 83, 0.06);
+}
+
+.asset-check {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--white);
+  color: #aaa59d;
+  font-weight: 800;
+}
+
+.asset-choice:has(input:checked) .asset-check {
+  border-color: var(--green);
+  background: var(--green);
+  color: white;
+}
+
+.asset-choice strong,
+.asset-choice small {
+  display: block;
+}
+
+.asset-choice strong {
+  font-size: 12px;
+}
+
+.asset-choice small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.asset-note {
+  margin: 10px 1px 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.55;
 }
 
 .content-choice strong {
@@ -976,6 +1042,10 @@ footer code {
 
   .content-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .asset-grid {
+    grid-template-columns: 1fr;
   }
 
   .job-panel {

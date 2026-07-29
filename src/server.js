@@ -4,6 +4,8 @@ import { createReadStream } from "node:fs";
 import {
   mkdir,
   readFile,
+  rm,
+  writeFile,
   stat
 } from "node:fs/promises";
 import http from "node:http";
@@ -126,7 +128,9 @@ function validateExportRequest(value) {
     start,
     end,
     messageTypes,
-    maxPages
+    maxPages,
+    embedAvatars: Boolean(value.embedAvatars),
+    downloadMedia: Boolean(value.downloadMedia)
   };
 }
 
@@ -139,6 +143,8 @@ function publicJob(job) {
     createdAt: job.createdAt,
     loadedMessages: job.loadedMessages,
     earliestLoaded: job.earliestLoaded,
+    assetProgress: job.assetProgress,
+    avatarProgress: job.avatarProgress,
     error: job.error || null
   };
   if (job.result) {
@@ -153,6 +159,24 @@ function parseProgressLine(job, line) {
     job.stage = "loading-history";
     job.loadedMessages = Number(progress[1]);
     job.earliestLoaded = progress[2].trim();
+    return;
+  }
+  const mediaProgress = line.match(/媒体下载\s+(\d+)\/(\d+)$/);
+  if (mediaProgress) {
+    job.stage = "downloading-media";
+    job.assetProgress = {
+      completed: Number(mediaProgress[1]),
+      total: Number(mediaProgress[2])
+    };
+    return;
+  }
+  const avatarProgress = line.match(/头像下载\s+(\d+)\/(\d+)$/);
+  if (avatarProgress) {
+    job.stage = "embedding-avatars";
+    job.avatarProgress = {
+      completed: Number(avatarProgress[1]),
+      total: Number(avatarProgress[2])
+    };
   }
 }
 
@@ -161,9 +185,17 @@ async function runExportJob(job, settings, exportsDirectory) {
   job.stage = "opening-conversation";
   await mkdir(exportsDirectory, { recursive: true });
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const filename = `xiaohongshu-${safeFilenamePart(settings.conversationName)}-${timestamp}.chatlab.json`;
-  const outputPath = path.join(exportsDirectory, filename);
-  job.outputPath = outputPath;
+  const baseName = `xiaohongshu-${safeFilenamePart(settings.conversationName)}-${timestamp}`;
+  const jobDirectory = path.join(exportsDirectory, ".jobs", job.id);
+  const archiveRoot = path.join(jobDirectory, baseName);
+  const jsonFilename = settings.downloadMedia ? "chatlab.json" : `${baseName}.chatlab.json`;
+  const jsonPath = settings.downloadMedia
+    ? path.join(archiveRoot, jsonFilename)
+    : path.join(exportsDirectory, jsonFilename);
+  const mediaDirectory = path.join(archiveRoot, "media");
+  if (settings.downloadMedia) {
+    await mkdir(archiveRoot, { recursive: true });
+  }
 
   const argumentsList = [
     CLI_PATH,
@@ -178,9 +210,19 @@ async function runExportJob(job, settings, exportsDirectory) {
     "--max-pages",
     String(settings.maxPages),
     "--output",
-    outputPath,
+    jsonPath,
     "--force"
   ];
+  if (settings.embedAvatars) {
+    argumentsList.push("--embed-avatars");
+  }
+  if (settings.downloadMedia) {
+    argumentsList.push(
+      "--download-media",
+      "--media-directory",
+      mediaDirectory
+    );
+  }
   if (settings.start) {
     argumentsList.push("--start", settings.start);
   }
@@ -226,8 +268,41 @@ async function runExportJob(job, settings, exportsDirectory) {
   }
 
   job.stage = "validating";
-  const source = await readFile(outputPath, "utf8");
+  const source = await readFile(jsonPath, "utf8");
   const data = JSON.parse(source);
+  let outputPath = jsonPath;
+  let filename = jsonFilename;
+  let mediaSummary = null;
+  if (settings.downloadMedia) {
+    const manifest = JSON.parse(
+      await readFile(path.join(mediaDirectory, "manifest.json"), "utf8")
+    );
+    mediaSummary = manifest.summary;
+    await writeFile(
+      path.join(archiveRoot, "README.txt"),
+      [
+        "小红书聊天本地归档",
+        "",
+        "chatlab.json        ChatLab v0.0.2 聊天记录",
+        "media/              下载成功的图片、表情、卡片封面和音视频",
+        "media/manifest.json 原始 URL、本地路径、文件哈希与失败记录",
+        "",
+        "chatlab.json 的消息 content 同时保留原始 URL 与 ZIP 内本地路径。",
+        "请妥善保管，其中可能包含私人聊天内容。"
+      ].join("\n"),
+      { encoding: "utf8", mode: 0o600 }
+    );
+    job.stage = "packaging";
+    filename = `${baseName}.zip`;
+    outputPath = path.join(exportsDirectory, filename);
+    await execFileAsync(
+      "/usr/bin/zip",
+      ["-r", "-q", outputPath, baseName],
+      { cwd: jobDirectory }
+    );
+    await rm(jobDirectory, { recursive: true, force: true });
+  }
+  job.outputPath = outputPath;
   const fileStats = await stat(outputPath);
   const firstMessage = data.messages[0];
   const lastMessage = data.messages.at(-1);
@@ -239,6 +314,11 @@ async function runExportJob(job, settings, exportsDirectory) {
     firstTimestamp: firstMessage.timestamp,
     lastTimestamp: lastMessage.timestamp,
     meta: data.meta,
+    packageType: settings.downloadMedia ? "zip" : "json",
+    embeddedAvatarCount:
+      data.members.filter((member) => member.avatar?.startsWith("data:image/")).length +
+      (data.meta.groupAvatar?.startsWith("data:image/") ? 1 : 0),
+    media: mediaSummary,
     downloadUrl: `/api/jobs/${job.id}/download`
   };
   job.status = "completed";
@@ -325,7 +405,10 @@ export function createAppServer({
         }
         const fileStats = await stat(job.outputPath);
         response.writeHead(200, {
-          "Content-Type": "application/json; charset=utf-8",
+          "Content-Type":
+            job.result.packageType === "zip"
+              ? "application/zip"
+              : "application/json; charset=utf-8",
           "Content-Length": fileStats.size,
           "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(job.result.filename)}`,
           "Cache-Control": "no-store",
@@ -378,6 +461,8 @@ export function createAppServer({
             createdAt: Date.now(),
             loadedMessages: 0,
             earliestLoaded: null,
+            assetProgress: null,
+            avatarProgress: null,
             error: null,
             result: null,
             outputPath: null

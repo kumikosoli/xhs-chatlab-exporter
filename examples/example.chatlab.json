@@ -2,7 +2,7 @@
   "chatlab": {
     "version": "0.0.2",
     "exportedAt": 1785338400,
-    "generator": "xhs-chatlab-exporter/0.2.0"
+    "generator": "xhs-chatlab-exporter/0.3.0"
   },
   "meta": {
     "name": "示例私聊",

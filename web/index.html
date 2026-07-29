@@ -173,6 +173,31 @@
               </div>
             </fieldset>
 
+            <fieldset class="form-section">
+              <legend>资源归档</legend>
+              <div class="asset-grid">
+                <label class="asset-choice">
+                  <input id="embed-avatars" type="checkbox" checked>
+                  <span class="asset-check" aria-hidden="true">✓</span>
+                  <span>
+                    <strong>嵌入成员头像</strong>
+                    <small>下载头像并以 Data URL 写入 ChatLab JSON</small>
+                  </span>
+                </label>
+                <label class="asset-choice">
+                  <input id="download-media" type="checkbox">
+                  <span class="asset-check" aria-hidden="true">↓</span>
+                  <span>
+                    <strong>下载聊天媒体</strong>
+                    <small>生成含 media/ 和 manifest 的 ZIP，可能耗时较长</small>
+                  </span>
+                </label>
+              </div>
+              <p class="asset-note">
+                下载失败的资源仍会保留原始 URL，并在 manifest 中记录原因。
+              </p>
+            </fieldset>
+
             <fieldset class="form-section compact-section">
               <legend>身份</legend>
               <label class="text-field">

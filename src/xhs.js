@@ -27,11 +27,17 @@ function compactLines(values) {
     .join("\n");
 }
 
-function mediaUrls(raw, kind) {
+function mediaItems(raw, kind) {
   return (raw.media || [])
     .filter((item) => !kind || item.kind === kind)
-    .map((item) => item.src)
-    .filter(Boolean);
+    .filter((item) => item.src || item.archivePath);
+}
+
+function mediaLines(raw, kind, label) {
+  return mediaItems(raw, kind).flatMap((item) => [
+    item.src ? `[${label}] ${item.src}` : "",
+    item.archivePath ? `[本地文件] ${item.archivePath}` : ""
+  ]);
 }
 
 function contentFor(raw, type) {
@@ -45,27 +51,30 @@ function contentFor(raw, type) {
   if (type === 1) {
     return compactLines([
       raw.text,
-      mediaUrls(raw, "image").map((url) => `[图片] ${url}`)
+      mediaLines(raw, "image", "图片")
     ]) || "[图片]";
   }
   if (type === 2) {
     return compactLines([
       raw.text,
-      mediaUrls(raw, "audio").map((url) => `[语音] ${url}`)
+      mediaLines(raw, "audio", "语音")
     ]) || "[语音]";
   }
   if (type === 3) {
     return compactLines([
       raw.text,
-      mediaUrls(raw, "video").map((url) => `[视频] ${url}`)
+      mediaLines(raw, "video", "视频")
     ]) || "[视频]";
   }
   if (type === 5) {
     return compactLines([
       raw.text,
-      (raw.media || [])
-        .filter((item) => item.kind === "emoji")
-        .map((item) => `[表情${item.alt ? `：${item.alt}` : ""}] ${item.src}`)
+      mediaItems(raw, "emoji").flatMap((item) => [
+        item.src
+          ? `[表情${item.alt ? `：${item.alt}` : ""}] ${item.src}`
+          : "",
+        item.archivePath ? `[本地文件] ${item.archivePath}` : ""
+      ])
     ]) || "[表情]";
   }
   if (type === 24 || type === 7) {
@@ -75,7 +84,7 @@ function contentFor(raw, type) {
     return compactLines([
       baseText,
       card,
-      mediaUrls(raw, "card-cover").map((url) => `[封面] ${url}`),
+      mediaLines(raw, "card-cover", "封面"),
       (raw.links || []).map((url) => `[链接] ${url}`)
     ]) || "[分享]";
   }
@@ -85,7 +94,10 @@ function contentFor(raw, type) {
   return (
     compactLines([
       baseText || raw.fallbackText,
-      (raw.media || []).map((item) => `[${item.kind}] ${item.src}`),
+      (raw.media || []).flatMap((item) => [
+        item.src ? `[${item.kind}] ${item.src}` : "",
+        item.archivePath ? `[本地文件] ${item.archivePath}` : ""
+      ]),
       (raw.links || []).map((url) => `[链接] ${url}`)
     ]) || `[小红书消息：原类型 ${raw.contentType || "未知"}]`
   );
@@ -132,7 +144,8 @@ function makeSenderResolver({
       return {
         platformId: "SYSTEM",
         accountName: "系统",
-        groupNickname: null
+        groupNickname: null,
+        avatarUrl: ""
       };
     }
 
@@ -144,7 +157,8 @@ function makeSenderResolver({
       return {
         platformId: selfId,
         accountName: selfName,
-        groupNickname: conversationKind === "group" ? selfName : null
+        groupNickname: conversationKind === "group" ? selfName : null,
+        avatarUrl: raw.avatar || ""
       };
     }
 
@@ -152,7 +166,8 @@ function makeSenderResolver({
       return {
         platformId: `xhs-user-${conversationId}`,
         accountName: raw.senderName || conversationName,
-        groupNickname: null
+        groupNickname: null,
+        avatarUrl: raw.avatar || ""
       };
     }
 
@@ -161,7 +176,8 @@ function makeSenderResolver({
     return {
       platformId: `xhs-user-${digest(`group-member:${key}`)}`,
       accountName: name,
-      groupNickname: name
+      groupNickname: name,
+      avatarUrl: raw.avatar || ""
     };
   };
 }
@@ -174,6 +190,8 @@ export function toChatLab(rawMessages, {
   startTimestamp = null,
   endTimestamp = null,
   includeMessageTypes = null,
+  avatarDataByUrl = null,
+  conversationAvatar = "",
   exportedAt = Math.floor(Date.now() / 1000)
 }) {
   if (!["private", "group"].includes(conversationKind)) {
@@ -216,7 +234,16 @@ export function toChatLab(rawMessages, {
         if (sender.groupNickname) {
           member.groupNickname = sender.groupNickname;
         }
-        members.set(sender.platformId, member);
+        const embeddedAvatar = avatarDataByUrl?.get(sender.avatarUrl);
+        if (embeddedAvatar) {
+          member.avatar = embeddedAvatar;
+        }
+        const existing = members.get(sender.platformId);
+        members.set(sender.platformId, {
+          ...existing,
+          ...member,
+          ...(member.avatar || !existing?.avatar ? {} : { avatar: existing.avatar })
+        });
       }
       const message = {
         platformMessageId: raw.messageId,
@@ -243,13 +270,17 @@ export function toChatLab(rawMessages, {
   };
   if (conversationKind === "group") {
     meta.groupId = String(conversationId);
+    const embeddedGroupAvatar = avatarDataByUrl?.get(conversationAvatar);
+    if (embeddedGroupAvatar) {
+      meta.groupAvatar = embeddedGroupAvatar;
+    }
   }
 
   const result = {
     chatlab: {
       version: "0.0.2",
       exportedAt,
-      generator: "xhs-chatlab-exporter/0.2.0"
+      generator: "xhs-chatlab-exporter/0.3.0"
     },
     meta,
     members: Array.from(members.values()),

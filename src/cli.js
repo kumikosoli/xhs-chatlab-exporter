@@ -18,9 +18,14 @@ import {
   formatEpoch,
   parseTimeBoundary
 } from "./time.js";
+import {
+  attachMediaArchivePaths,
+  downloadMediaAssets,
+  embedAvatarData
+} from "./media.js";
 import { toChatLab } from "./xhs.js";
 
-const VERSION = "0.2.0";
+const VERSION = "0.3.0";
 const VALUE_OPTIONS = new Map([
   ["--conversation", "conversation"],
   ["-c", "conversation"],
@@ -32,6 +37,7 @@ const VALUE_OPTIONS = new Map([
   ["-o", "output"],
   ["--kind", "kind"],
   ["--message-types", "messageTypes"],
+  ["--media-directory", "mediaDirectory"],
   ["--tab-url-contains", "tabUrlContains"],
   ["--max-pages", "maxPages"],
   ["--settle-ms", "settleMilliseconds"]
@@ -54,6 +60,10 @@ xhs-chat-export — 将小红书网页版聊天导出为 ChatLab JSON
                             自动识别，或校验指定的会话类型
       --message-types <列表>
                             仅导出指定 ChatLab 类型，如 0,1,5,25
+      --embed-avatars       下载头像并以 Data URL 写入 ChatLab JSON
+      --download-media      将图片、表情、卡片封面和音视频保存到本地
+      --media-directory <目录>
+                            媒体保存目录；默认位于 JSON 文件旁
   -o, --output <文件>       输出 .json 路径
       --max-pages <数量>    最多向上加载的历史页数（默认 500）
       --settle-ms <毫秒>    每页最短等待时间（默认 800）
@@ -90,6 +100,9 @@ export function parseArgs(argv) {
     output: null,
     kind: "auto",
     messageTypes: null,
+    embedAvatars: false,
+    downloadMedia: false,
+    mediaDirectory: null,
     tabUrlContains: "xiaohongshu.com/chat/",
     maxPages: 500,
     settleMilliseconds: 800,
@@ -120,6 +133,12 @@ export function parseArgs(argv) {
         break;
       case "--force":
         options.force = true;
+        break;
+      case "--embed-avatars":
+        options.embedAvatars = true;
+        break;
+      case "--download-media":
+        options.downloadMedia = true;
         break;
       case "-h":
       case "--help":
@@ -152,6 +171,9 @@ export function parseArgs(argv) {
       throw new Error("--message-types 包含无效的 ChatLab 消息类型");
     }
     options.messageTypes = Array.from(new Set(parsedTypes));
+  }
+  if (options.mediaDirectory && !options.downloadMedia) {
+    throw new Error("--media-directory 只能与 --download-media 一起使用");
   }
   if (!options.help && !options.version && !options.list && !options.conversation) {
     throw new Error("请使用 --conversation 指定联系人/群聊，或使用 --list 查看会话");
@@ -394,13 +416,29 @@ async function writeJsonAtomically(filePath, data, force) {
   await rename(temporary, filePath);
 }
 
-function printSummary(data, { output, timeZone, dryRun }) {
+function printSummary(data, {
+  output,
+  timeZone,
+  dryRun,
+  avatarResult = null,
+  mediaResult = null
+}) {
   const first = data.messages[0].timestamp;
   const last = data.messages.at(-1).timestamp;
   console.log(`会话：${data.meta.name} (${data.meta.type})`);
   console.log(`成员：${data.members.length}`);
   console.log(`消息：${data.messages.length}`);
   console.log(`范围：${formatEpoch(first, timeZone)} → ${formatEpoch(last, timeZone)}`);
+  if (avatarResult) {
+    console.log(
+      `头像：已嵌入 ${avatarResult.embedded}/${avatarResult.total}，失败 ${avatarResult.failed}`
+    );
+  }
+  if (mediaResult) {
+    console.log(
+      `媒体：已下载 ${mediaResult.downloaded}/${mediaResult.total}，失败 ${mediaResult.failed}`
+    );
+  }
   console.log(dryRun ? "结果：校验通过（dry-run，未写文件）" : `输出：${output}`);
 }
 
@@ -478,25 +516,88 @@ export async function run(argv) {
     timeZone: options.timeZone
   });
   const rawMessages = await bridge.runPageFunction(extractMessagesPage);
-  const chatLab = toChatLab(rawMessages, {
+  const transformOptions = {
     conversationId: state.id,
     conversationKind,
     conversationName: state.name || target.name,
     selfName: options.selfName,
     startTimestamp,
     endTimestamp,
-    includeMessageTypes: options.messageTypes
-  });
+    includeMessageTypes: options.messageTypes,
+    conversationAvatar: state.avatar || ""
+  };
 
   const defaultName = `xiaohongshu-${safeFilePart(state.name || target.name)}.chatlab.json`;
   const output = path.resolve(options.output || defaultName);
+  const preview = toChatLab(rawMessages, transformOptions);
+  const selectedIds = new Set(
+    preview.messages.map((message) => message.platformMessageId)
+  );
+  const selectedRawMessages = rawMessages.filter((message) =>
+    selectedIds.has(message.messageId)
+  );
+  let preparedMessages = rawMessages;
+  let avatarResult = null;
+  let mediaResult = null;
+
+  if (options.downloadMedia && !options.dryRun) {
+    const mediaDirectory = path.resolve(
+      options.mediaDirectory ||
+        `${output.replace(/\.json$/i, "")}.media`
+    );
+    const relativeMediaDirectory =
+      path.relative(path.dirname(output), mediaDirectory) ||
+      path.basename(mediaDirectory);
+    const archivePathPrefix = relativeMediaDirectory
+      .split(path.sep)
+      .join(path.posix.sep);
+    console.error("正在下载聊天媒体…");
+    mediaResult = await downloadMediaAssets(
+      selectedRawMessages,
+      mediaDirectory,
+      {
+        archivePathPrefix,
+        onProgress: ({ completed, total }) => {
+          if (completed === total || completed % 5 === 0) {
+            console.error(`媒体下载 ${completed}/${total}`);
+          }
+        }
+      }
+    );
+    preparedMessages = attachMediaArchivePaths(
+      rawMessages,
+      mediaResult.localPathByUrl
+    );
+  }
+
+  if (options.embedAvatars) {
+    console.error("正在嵌入头像…");
+    avatarResult = await embedAvatarData(selectedRawMessages, {
+      conversationAvatar: state.avatar || "",
+      onProgress: ({ completed, total }) => {
+        if (completed === total || completed % 5 === 0) {
+          console.error(`头像下载 ${completed}/${total}`);
+        }
+      }
+    });
+  }
+
+  const chatLab =
+    preparedMessages === rawMessages && !avatarResult
+      ? preview
+      : toChatLab(preparedMessages, {
+          ...transformOptions,
+          avatarDataByUrl: avatarResult?.dataByUrl || null
+        });
   if (!options.dryRun) {
     await writeJsonAtomically(output, chatLab, options.force);
   }
   printSummary(chatLab, {
     output,
     timeZone: options.timeZone,
-    dryRun: options.dryRun
+    dryRun: options.dryRun,
+    avatarResult,
+    mediaResult
   });
 }
 

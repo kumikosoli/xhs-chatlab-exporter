@@ -1,6 +1,6 @@
 # 小红书网页版 → ChatLab JSON 导出器
 
-在 macOS 上，从**已经登录的小红书 Safari 标签页**读取指定私聊或群聊，按时间范围加载历史消息，并导出为 [ChatLab 标准格式 v0.0.2](https://docs.chatlab.fun/cn/standard/chatlab-format) JSON。
+在 macOS 上，从**已经登录的小红书 Safari 标签页**读取指定私聊或群聊，按时间范围加载历史消息，并导出为 [ChatLab 标准格式 v0.0.2](https://docs.chatlab.fun/cn/standard/chatlab-format) JSON。可选嵌入成员头像，或生成包含聊天图片、表情、卡片封面和音视频的 ZIP 归档。
 
 它不使用 Computer Use，不靠截图或 OCR，也不会读取 Cookie、调用私有接口或发送消息。脚本通过 Safari 官方的 Apple Events JavaScript 能力读取当前页面 DOM。
 
@@ -13,6 +13,8 @@
 - 可选择只导出文字、媒体、分享、回复、系统消息或未知消息
 - 自动滚动到所需历史时间；尚未到达时不会静默输出残缺结果
 - 导出文字、图片、表情、笔记分享、回复、系统提示、撤回，以及未知消息的可读占位
+- 可将成员头像下载并以内嵌 Data URL 写入 ChatLab
+- 可下载聊天媒体，生成带 `manifest.json` 的完整 ZIP 归档
 - 保留原始 `platformMessageId`，便于 ChatLab 去重
 - 输出前执行本地严格校验
 - 零运行时 npm 依赖
@@ -56,12 +58,30 @@ http://127.0.0.1:4177
 2. 回到控制台点击“刷新连接”。
 3. 搜索并选择联系人或群聊。
 4. 选择全部历史或日期范围。
-5. 勾选需要的消息内容类别，点击“开始导出”。
-6. 页面实时显示加载进度；完成后可下载 JSON 或在 Finder 中显示。
+5. 勾选需要的消息内容类别；按需选择“嵌入成员头像”和“下载聊天媒体”。
+6. 点击“开始导出”。页面会显示聊天加载、头像、媒体和打包进度。
+7. 完成后下载 JSON/ZIP，或在 Finder 中显示本地原件。
 
 “直接登录”指控制台负责打开小红书官方登录页，并在登录后自动连接。账号、密码和扫码过程不会进入本工具，也不会把小红书页面嵌入不受信任的 iframe。
 
 网页导出的本地原件保存在仓库的 `exports/` 目录，该目录默认不会进入 Git。服务只监听 `127.0.0.1`，每次启动还会生成随机令牌保护写操作。
+
+“嵌入成员头像”默认开启。头像会成为 JSON 内的 `data:image/...;base64,...`，因此单个 JSON 文件就能保留头像。“下载聊天媒体”默认关闭；开启后，下载结果是 ZIP：
+
+```text
+xiaohongshu-会话名-时间/
+├── chatlab.json
+├── README.txt
+└── media/
+    ├── manifest.json
+    ├── images/
+    ├── stickers/
+    ├── card-covers/
+    ├── audio/
+    └── videos/
+```
+
+媒体消息的 `content` 同时保留小红书原始 URL 和 ZIP 内的 `[本地文件] media/...` 路径。`manifest.json` 记录原始 URL、本地路径、类型、大小和 SHA-256；个别资源下载失败时也会记录原因，不会让整次导出作废。
 
 如不想自动打开浏览器：
 
@@ -88,6 +108,20 @@ node ./bin/xhs-chat-export.js \
   --self-name "我的显示名称" \
   --output ./contact.chatlab.json
 ```
+
+同时嵌入头像并下载聊天媒体：
+
+```bash
+node ./bin/xhs-chat-export.js \
+  --conversation "联系人名称" \
+  --start 2026-07-01 \
+  --end 2026-07-29 \
+  --embed-avatars \
+  --download-media \
+  --output ./contact.chatlab.json
+```
+
+此时媒体默认写入同目录的 `contact.chatlab.media/`；可用 `--media-directory` 指定其他目录。命令行模式保留 JSON 和媒体目录两个可直接访问的输出，网页控制台则将它们打包成 ZIP。
 
 按 ID 导出群聊：
 
@@ -143,6 +177,10 @@ unixSeconds = (hex(lastMessageIdSegment) >> 24) - 0x180000000
     --kind <auto|private|group>
     --message-types <列表>
                            仅导出指定 ChatLab 类型，如 0,1,5,25
+    --embed-avatars        下载头像并以 Data URL 写入 ChatLab JSON
+    --download-media       下载图片、表情、卡片封面和音视频
+    --media-directory <目录>
+                           媒体保存目录；默认位于 JSON 文件旁
 -o, --output <文件>       输出路径
     --max-pages <数量>    最多加载历史页数，默认 500
     --settle-ms <毫秒>    每页最短等待时间，默认 800
@@ -186,7 +224,14 @@ ChatLab v0.0.2 的消息 `content` 是纯文本或 `null`。因此图片、表�
 [图片] https://...
 ```
 
-成员头像没有写入 `avatar` 字段，因为文件规范要求 Data URL；导出器也不会下载图片。群聊页面没有暴露发送者的原始用户 ID，所以群成员 `platformId` 由头像资源标识进行 SHA-256 派生，不会把头像 URL 原文写进成员字段。若用户更换头像，跨批次导出时可能被识别为新成员。
+启用媒体下载后，同一字段会增加本地归档路径：
+
+```text
+[图片] https://...
+[本地文件] media/images/...
+```
+
+启用头像嵌入后，成员的 `avatar`（以及可取得时的 `meta.groupAvatar`）是符合规范的 Data URL。未启用时不写入头像内容。群聊页面没有暴露发送者的原始用户 ID，所以群成员 `platformId` 由头像资源标识进行 SHA-256 派生，不会把头像 URL 原文写进成员字段。若用户更换头像，跨批次导出时可能被识别为新成员。
 
 ## 校验
 
@@ -217,13 +262,15 @@ chatlab import "/absolute/path/to/output.chatlab.json" --dry-run --json
 4. 将 `.xhs-im-msg-list` 滚到顶部，等待网页按页加载更早消息。
 5. 用消息 ID 的内嵌时间判断是否到达 `--start`。
 6. 从 DOM 提取消息并转换成 ChatLab v0.0.2。
-7. 去重、排序、过滤、校验，然后原子写入 JSON。
+7. 按选项下载头像与媒体，并将本地路径写入消息。
+8. 去重、排序、过滤、校验，然后原子写入 JSON 或打包 ZIP。
 
 ## 已知限制
 
 - 依赖小红书网页版当前的 DOM 类名；网站改版后可能需要更新 `src/page-scripts.js`。
 - 只能导出网页向当前账号提供的历史记录。
-- 媒体文件本身不会下载，保留的是网页资源 URL。
+- 小红书 CDN 链接可能过期；需要永久保留媒体时应在链接仍有效时启用媒体下载。
+- 下载是否成功取决于当前网络和小红书 CDN；失败项目会写进 `media/manifest.json`。
 - 页面没有提供引用消息的原始消息 ID，因此回复会映射为 `type: 25` 并把引用文字写入 `content`，但不会伪造 `replyToMessageId`。
 - JSON 适合少于约一百万条消息的中小型记录。ChatLab 规范建议更大的记录使用 JSONL；当前版本按需求只生成 JSON。
 
