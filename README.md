@@ -1,0 +1,202 @@
+# 小红书网页版 → ChatLab JSON 导出器
+
+在 macOS 上，从**已经登录的小红书 Safari 标签页**读取指定私聊或群聊，按时间范围加载历史消息，并导出为 [ChatLab 标准格式 v0.0.2](https://docs.chatlab.fun/cn/standard/chatlab-format) JSON。
+
+它不使用 Computer Use，不靠截图或 OCR，也不会读取 Cookie、调用私有接口或发送消息。脚本通过 Safari 官方的 Apple Events JavaScript 能力读取当前页面 DOM。
+
+## 能做什么
+
+- 按联系人名、群名或小红书 `data-conv-id` 选择会话
+- 自动区分私聊和群聊，也可用 `--kind` 强制校验
+- 用 `--start` / `--end` 设置包含端点的时间范围
+- 自动滚动到所需历史时间；尚未到达时不会静默输出残缺结果
+- 导出文字、图片、表情、笔记分享、回复、系统提示、撤回，以及未知消息的可读占位
+- 保留原始 `platformMessageId`，便于 ChatLab 去重
+- 输出前执行本地严格校验
+- 零运行时 npm 依赖
+
+## 环境要求
+
+- macOS
+- Safari
+- Node.js 20 或更高版本
+- 小红书网页版聊天页已登录并保持打开，例如：
+
+  ```text
+  https://www.xiaohongshu.com/chat/<会话 ID>
+  ```
+
+- Safari 已开启：
+
+  ```text
+  开发 → 允许来自 Apple 事件的 JavaScript
+  ```
+
+如果菜单栏没有“开发”，先在 Safari 设置的高级/开发者选项中显示开发菜单。首次运行时，macOS 也可能要求允许当前终端自动化控制 Safari。
+
+## 快速开始
+
+仓库没有第三方运行时依赖，可以直接执行：
+
+```bash
+cd /path/to/xhs-chat-exporter
+node ./bin/xhs-chat-export.js --list
+```
+
+按名称导出私聊：
+
+```bash
+node ./bin/xhs-chat-export.js \
+  --conversation "联系人名称" \
+  --start 2026-07-01 \
+  --end 2026-07-29 \
+  --self-name "我的显示名称" \
+  --output ./contact.chatlab.json
+```
+
+按 ID 导出群聊：
+
+```bash
+node ./bin/xhs-chat-export.js \
+  --conversation 137999752897687566 \
+  --kind group \
+  --start 2026-07-29T09:00:00 \
+  --end 2026-07-29T18:00:00 \
+  --output ./group.chatlab.json
+```
+
+也可以使用 npm 脚本：
+
+```bash
+npm run export -- --conversation "群聊名称" --start 2026-07-01
+```
+
+不提供 `--start` 时，脚本会持续向上加载，直到页面不再提供更早的消息；很长的聊天建议明确给出起始时间。
+
+## 时间规则
+
+默认时区是 `Asia/Shanghai`。以下格式都可用：
+
+```text
+2026-07-15
+2026-07-15T22:43:00
+2026-07-15T22:43:00+08:00
+1784126580
+```
+
+- 只有日期的 `--start` 表示当天 `00:00:00`
+- 只有日期的 `--end` 表示当天 `23:59:59`
+- 时间范围是闭区间：`start <= timestamp <= end`
+- 可用 `--timezone America/Los_Angeles` 等 IANA 时区覆盖默认值
+
+小红书网页没有把每条消息的时间直接显示在 DOM 文本里，但原始消息 ID 的最后一段含秒级时间。导出器按以下规则解码：
+
+```text
+unixSeconds = (hex(lastMessageIdSegment) >> 24) - 0x180000000
+```
+
+页面中一条显示为 `2026-07-15 22:43` 的真实消息由此解码为 `2026-07-15 22:43:20 +08:00`。导出器使用这个精确时间，不根据时间分隔符猜测。
+
+## 命令行参数
+
+```text
+-c, --conversation <值>   私聊联系人、群名或 data-conv-id
+    --start <时间>        起始时间（包含）
+    --end <时间>          结束时间（包含）
+    --timezone <IANA>     默认 Asia/Shanghai
+    --self-name <名称>    默认“我”
+    --kind <auto|private|group>
+-o, --output <文件>       输出路径
+    --max-pages <数量>    最多加载历史页数，默认 500
+    --settle-ms <毫秒>    每页最短等待时间，默认 800
+    --tab-url-contains <值>
+                           选择 Safari 标签页的 URL 片段
+    --list                列出会话
+    --dry-run             抓取并校验，但不写文件
+    --force               覆盖已有文件
+-h, --help                帮助
+    --version             版本
+```
+
+输出文件默认权限为 `0600`。已有文件默认不会被覆盖，必须显式添加 `--force`。
+
+## ChatLab 字段与消息映射
+
+输出始终包含四个标准区块：
+
+```text
+chatlab + meta + members + messages
+```
+
+`meta.platform` 使用可扩展的小写标识 `xiaohongshu`。每条消息都有秒级 `timestamp`、`sender`、`accountName`、数值 `type`、`content` 和原始 `platformMessageId`。
+
+| 小红书网页结构 | ChatLab 类型 |
+|---|---:|
+| 文字 | `0` TEXT |
+| 图片 | `1` IMAGE |
+| 检测到的语音 | `2` VOICE |
+| 检测到的视频 | `3` VIDEO |
+| 表情/贴纸 | `5` EMOJI |
+| 笔记卡片/分享 | `24` SHARE |
+| 引用回复 | `25` REPLY |
+| 加群、状态等提示 | `80` SYSTEM |
+| 撤回 | `81` RECALL |
+| 未知结构 | `99` OTHER |
+
+ChatLab v0.0.2 的消息 `content` 是纯文本或 `null`。因此图片、表情和笔记封面的远程地址以普通文本保留，例如：
+
+```text
+[图片] https://...
+```
+
+成员头像没有写入 `avatar` 字段，因为文件规范要求 Data URL；导出器也不会下载图片。群聊页面没有暴露发送者的原始用户 ID，所以群成员 `platformId` 由头像资源标识进行 SHA-256 派生，不会把头像 URL 原文写进成员字段。若用户更换头像，跨批次导出时可能被识别为新成员。
+
+## 校验
+
+运行仓库测试：
+
+```bash
+npm test
+npm run check
+```
+
+使用 ChatLab 官方 CLI 做最终校验：
+
+```bash
+npm install -g chatlab-cli
+chatlab validate "/absolute/path/to/output.chatlab.json" --json
+chatlab import "/absolute/path/to/output.chatlab.json" --dry-run --json
+```
+
+`--dry-run` 只预演导入，不写入 ChatLab 数据库。
+
+仓库中的 [examples/example.chatlab.json](./examples/example.chatlab.json) 是不含真实聊天内容的最小示例。
+
+## 工作方式
+
+1. 枚举 Safari 里 URL 含 `xiaohongshu.com/chat/` 的标签页。
+2. 从侧栏读取会话的名称、ID 和类型。
+3. 点击目标会话；只有给出明确 ID 且侧栏找不到时才直接导航到对应 URL。
+4. 将 `.xhs-im-msg-list` 滚到顶部，等待网页按页加载更早消息。
+5. 用消息 ID 的内嵌时间判断是否到达 `--start`。
+6. 从 DOM 提取消息并转换成 ChatLab v0.0.2。
+7. 去重、排序、过滤、校验，然后原子写入 JSON。
+
+## 已知限制
+
+- 依赖小红书网页版当前的 DOM 类名；网站改版后可能需要更新 `src/page-scripts.js`。
+- 只能导出网页向当前账号提供的历史记录。
+- 媒体文件本身不会下载，保留的是网页资源 URL。
+- 页面没有提供引用消息的原始消息 ID，因此回复会映射为 `type: 25` 并把引用文字写入 `content`，但不会伪造 `replyToMessageId`。
+- JSON 适合少于约一百万条消息的中小型记录。ChatLab 规范建议更大的记录使用 JSONL；当前版本按需求只生成 JSON。
+
+## 隐私与安全
+
+- 不读取或导出 Safari Cookie
+- 不拦截网络请求
+- 不调用小红书未公开 API
+- 不点击发送按钮，不修改聊天
+- 不上传聊天内容
+- 实际聊天文件已被 `.gitignore` 排除
+
+请只导出你有权保存和处理的聊天记录，并妥善保管输出文件。

@@ -1,0 +1,32 @@
+{
+  "chatlab": {
+    "version": "0.0.2",
+    "exportedAt": 1785338400,
+    "generator": "xhs-chatlab-exporter/0.1.0"
+  },
+  "meta": {
+    "name": "示例私聊",
+    "platform": "xiaohongshu",
+    "type": "private"
+  },
+  "members": [
+    {
+      "platformId": "xhs-user-self-example",
+      "accountName": "我"
+    },
+    {
+      "platformId": "xhs-user-contact-example",
+      "accountName": "示例联系人"
+    }
+  ],
+  "messages": [
+    {
+      "platformMessageId": "example.1ea579c880b02fc",
+      "sender": "xhs-user-self-example",
+      "accountName": "我",
+      "timestamp": 1784126600,
+      "type": 0,
+      "content": "这是一条示例消息。"
+    }
+  ]
+}
