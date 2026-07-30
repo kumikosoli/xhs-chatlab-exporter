@@ -17,5 +17,9 @@
   "engines": {
     "node": ">=20"
   },
+  "contributors": [
+    "kumikosoli",
+    "OpenAI Codex (AI collaborator)"
+  ],
   "license": "MIT"
 }

@@ -285,3 +285,8 @@ chatlab import "/absolute/path/to/output.chatlab.json" --dry-run --json
 - 实际聊天文件已被 `.gitignore` 排除
 
 请只导出你有权保存和处理的聊天记录，并妥善保管输出文件。
+
+## Contributors
+
+- [kumikosoli](https://github.com/kumikosoli) — 项目维护者
+- OpenAI Codex — AI 编程协作者
