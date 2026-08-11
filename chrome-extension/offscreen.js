@@ -1,4 +1,4 @@
-/* xhs-chatlab-exporter v0.4.0 — generated; edit extension-src/ */
+/* xhs-chatlab-exporter v0.5.0 — generated; edit extension-src/ */
 (() => {
   // node_modules/fflate/esm/browser.js
   var u8 = Uint8Array;
@@ -1243,6 +1243,14 @@
   var MAX_AVATAR_BYTES = 5 * 1024 * 1024;
   var MAX_MEDIA_BYTES = 200 * 1024 * 1024;
   var MAX_ARCHIVE_BYTES = 768 * 1024 * 1024;
+  var MEDIA_KIND_ORDER = ["image", "audio", "video", "emoji", "card-cover"];
+  var MEDIA_KIND_LABELS = /* @__PURE__ */ new Map([
+    ["image", "\u56FE\u7247"],
+    ["audio", "\u8BED\u97F3"],
+    ["video", "\u89C6\u9891"],
+    ["emoji", "\u8868\u60C5"],
+    ["card-cover", "\u5361\u7247\u5C01\u9762"]
+  ]);
   function safeFilenamePart(value) {
     const cleaned = String(value || "").normalize("NFKC").replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-").replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^[.-]+|[.-]+$/g, "").slice(0, 80);
     return cleaned || "conversation";
@@ -1437,11 +1445,13 @@
         return "images";
     }
   }
-  function collectMedia(rawMessages) {
+  function collectMedia(rawMessages, mediaKinds) {
+    const allowedKinds = new Set(mediaKinds);
     const assets = /* @__PURE__ */ new Map();
     for (const message of rawMessages) {
       for (const media of message.media || []) {
-        if (!media.src) {
+        const kind = media.kind || "image";
+        if (!media.src || !allowedKinds.has(kind)) {
           continue;
         }
         const existing = assets.get(media.src);
@@ -1450,7 +1460,7 @@
         } else {
           assets.set(media.src, {
             sourceUrl: media.src,
-            kind: media.kind || "image",
+            kind,
             alt: media.alt || "",
             messageIds: /* @__PURE__ */ new Set([message.messageId])
           });
@@ -1459,8 +1469,21 @@
     }
     return Array.from(assets.values());
   }
-  async function downloadMedia(rawMessages, onProgress) {
-    const assets = collectMedia(rawMessages);
+  function mediaSummary(results, selectedKinds) {
+    return Object.fromEntries(selectedKinds.map((kind) => {
+      const matching = results.filter((item) => item.kind === kind);
+      const succeeded = matching.filter((item) => item.localPath);
+      return [kind, {
+        total: matching.length,
+        downloaded: succeeded.length,
+        failed: matching.length - succeeded.length,
+        totalBytes: succeeded.reduce((sum, item) => sum + item.size, 0)
+      }];
+    }));
+  }
+  async function downloadMedia(rawMessages, mediaKinds, onProgress) {
+    const selectedKinds = MEDIA_KIND_ORDER.filter((kind) => mediaKinds.includes(kind));
+    const assets = collectMedia(rawMessages, selectedKinds);
     let completed = 0;
     let totalBytes = 0;
     const results = await mapConcurrent(assets, 4, async (item) => {
@@ -1513,11 +1536,13 @@
       manifest: {
         version: 1,
         generatedAt: Math.floor(Date.now() / 1e3),
+        selection: { mediaKinds: selectedKinds },
         summary: {
           total: results.length,
           downloaded: succeeded.length,
           failed: failures.length,
-          totalBytes: succeeded.reduce((sum, item) => sum + item.size, 0)
+          totalBytes: succeeded.reduce((sum, item) => sum + item.size, 0),
+          byKind: mediaSummary(results, selectedKinds)
         },
         assets: succeeded.map(({ bytes: _bytes, error: _error, ...item }) => item),
         failures: failures.map(({ bytes: _bytes, ...item }) => item)
@@ -1577,7 +1602,8 @@
     let mediaResult = null;
     let preparedMessages = payload.rawMessages;
     if (payload.downloadMedia) {
-      mediaResult = await downloadMedia(selectedRawMessages, onProgress);
+      const mediaKinds = Array.isArray(payload.mediaKinds) ? payload.mediaKinds : MEDIA_KIND_ORDER;
+      mediaResult = await downloadMedia(selectedRawMessages, mediaKinds, onProgress);
       preparedMessages = attachMediaPaths(
         payload.rawMessages,
         mediaResult.localPathByUrl
@@ -1601,6 +1627,7 @@
     }
     onProgress({ stage: "packaging", detail: "\u6B63\u5728\u751F\u6210 ZIP\u2026", progress: null });
     const root = baseName;
+    const selectedMediaLabels = mediaResult.manifest.selection.mediaKinds.map((kind) => MEDIA_KIND_LABELS.get(kind) || kind).join("\u3001");
     const files = {
       [`${root}/chatlab.json`]: strToU8(jsonText),
       [`${root}/README.txt`]: strToU8(
@@ -1608,7 +1635,7 @@
           "\u5C0F\u7EA2\u4E66\u804A\u5929\u672C\u5730\u5F52\u6863\uFF08Chrome / Edge \u6269\u5C55\uFF09",
           "",
           "chatlab.json        ChatLab v0.0.2 \u804A\u5929\u8BB0\u5F55",
-          "media/              \u4E0B\u8F7D\u6210\u529F\u7684\u56FE\u7247\u3001\u8868\u60C5\u3001\u5361\u7247\u5C01\u9762\u548C\u97F3\u89C6\u9891",
+          `media/              \u4E0B\u8F7D\u6210\u529F\u7684\u6240\u9009\u8D44\u6E90\uFF1A${selectedMediaLabels}`,
           "media/manifest.json \u539F\u59CB URL\u3001\u672C\u5730\u8DEF\u5F84\u3001\u6587\u4EF6\u54C8\u5E0C\u4E0E\u5931\u8D25\u8BB0\u5F55",
           "",
           "\u6240\u6709\u6570\u636E\u5747\u5728\u672C\u673A\u6D4F\u89C8\u5668\u4E2D\u5904\u7406\u3002\u8BF7\u59A5\u5584\u4FDD\u7BA1\u79C1\u4EBA\u804A\u5929\u5185\u5BB9\u3002"

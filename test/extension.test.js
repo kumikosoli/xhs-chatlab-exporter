@@ -44,6 +44,7 @@ function exportPayload(overrides = {}) {
     includeMessageTypes: [1],
     embedAvatars: true,
     downloadMedia: true,
+    mediaKinds: ["image", "audio", "video", "emoji", "card-cover"],
     ...overrides
   };
 }
@@ -53,7 +54,7 @@ test("extension manifest is loadable and limited to expected permissions", async
     await readFile(new URL("../chrome-extension/manifest.json", import.meta.url), "utf8")
   );
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.4.0");
+  assert.equal(manifest.version, "0.5.0");
   assert.deepEqual(manifest.permissions.sort(), [
     "activeTab",
     "downloads",
@@ -89,7 +90,14 @@ test("browser archive embeds avatars and packages media with a manifest", async 
       total: 1,
       downloaded: 1,
       failed: 0,
-      totalBytes: png.length
+      totalBytes: png.length,
+      byKind: {
+        image: { total: 1, downloaded: 1, failed: 0, totalBytes: png.length },
+        audio: { total: 0, downloaded: 0, failed: 0, totalBytes: 0 },
+        video: { total: 0, downloaded: 0, failed: 0, totalBytes: 0 },
+        emoji: { total: 0, downloaded: 0, failed: 0, totalBytes: 0 },
+        "card-cover": { total: 0, downloaded: 0, failed: 0, totalBytes: 0 }
+      }
     });
 
     const files = unzipSync(new Uint8Array(await artifact.blob.arrayBuffer()));
@@ -103,6 +111,9 @@ test("browser archive embeds avatars and packages media with a manifest", async 
 
     const chatlab = JSON.parse(strFromU8(files[chatlabName]));
     const manifest = JSON.parse(strFromU8(files[manifestName]));
+    assert.deepEqual(manifest.selection.mediaKinds, [
+      "image", "audio", "video", "emoji", "card-cover"
+    ]);
     assert.match(chatlab.members[0].avatar, /^data:image\/png;base64,/);
     assert.match(chatlab.messages[0].content, /\[本地文件\] media\/images\//);
     assert.equal(manifest.assets.length, 1);
@@ -110,6 +121,43 @@ test("browser archive embeds avatars and packages media with a manifest", async 
     assert.ok(stages.includes("embedding-avatars"));
     assert.ok(stages.includes("downloading-media"));
     assert.ok(stages.includes("packaging"));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("browser archive downloads only the selected media kinds", async () => {
+  const originalFetch = globalThis.fetch;
+  const png = new Uint8Array([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+    0, 0, 0, 0, 0, 0, 0, 0
+  ]);
+  globalThis.fetch = async () => new Response(png, {
+    status: 200,
+    headers: { "content-type": "image/png" }
+  });
+  try {
+    const payload = exportPayload({
+      embedAvatars: false,
+      mediaKinds: ["image"],
+      rawMessages: [{
+        ...exportPayload().rawMessages[0],
+        media: [
+          { kind: "image", src: "https://static.example/image.png", alt: "图片" },
+          { kind: "emoji", src: "https://static.example/emoji.png", alt: "表情" }
+        ]
+      }]
+    });
+    const artifact = await buildExportArtifact(payload);
+    const files = unzipSync(new Uint8Array(await artifact.blob.arrayBuffer()));
+    const manifestName = Object.keys(files).find((name) =>
+      name.endsWith("/media/manifest.json")
+    );
+    const manifest = JSON.parse(strFromU8(files[manifestName]));
+    assert.deepEqual(manifest.selection.mediaKinds, ["image"]);
+    assert.equal(manifest.summary.total, 1);
+    assert.equal(manifest.assets[0].kind, "image");
+    assert.equal(Object.keys(files).some((name) => name.includes("/media/stickers/")), false);
   } finally {
     globalThis.fetch = originalFetch;
   }

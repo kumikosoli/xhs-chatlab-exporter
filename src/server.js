@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { scanConversations } from "./cli.js";
+import { MEDIA_KINDS } from "./media.js";
 import { conversationStatePage } from "./page-scripts.js";
 import { SafariBridge } from "./safari.js";
 
@@ -26,6 +27,13 @@ const DEFAULT_EXPORTS_DIRECTORY = path.join(PROJECT_DIRECTORY, "exports");
 const MAX_BODY_BYTES = 1_000_000;
 const CHATLAB_TYPES = new Set([
   0, 1, 2, 3, 4, 5, 7, 8, 20, 21, 22, 23, 24, 25, 26, 27, 80, 81, 99
+]);
+const MEDIA_KIND_LABELS = new Map([
+  ["image", "图片"],
+  ["audio", "语音"],
+  ["video", "视频"],
+  ["emoji", "表情"],
+  ["card-cover", "卡片封面"]
 ]);
 
 const STATIC_FILES = new Map([
@@ -104,6 +112,9 @@ function validateExportRequest(value) {
   }
   const start = value.allHistory ? "" : String(value.start || "").trim();
   const end = value.allHistory ? "" : String(value.end || "").trim();
+  if (!value.allHistory && (!start || !end)) {
+    throw new Error("按日期导出时必须同时选择开始日期和结束日期");
+  }
   if (start.length > 64 || end.length > 64) {
     throw new Error("时间参数过长");
   }
@@ -115,6 +126,14 @@ function validateExportRequest(value) {
     messageTypes.some((type) => !Number.isInteger(type) || !CHATLAB_TYPES.has(type))
   ) {
     throw new Error("请至少选择一种有效消息类型");
+  }
+  const mediaKinds = Array.isArray(value.mediaKinds)
+    ? Array.from(new Set(value.mediaKinds.map(String)))
+    : value.downloadMedia
+      ? [...MEDIA_KINDS]
+      : [];
+  if (mediaKinds.some((kind) => !MEDIA_KINDS.includes(kind))) {
+    throw new Error("包含不支持的媒体资源类型");
   }
   const maxPages = Number(value.maxPages || (value.allHistory ? 2000 : 500));
   if (!Number.isInteger(maxPages) || maxPages < 1 || maxPages > 10_000) {
@@ -130,7 +149,8 @@ function validateExportRequest(value) {
     messageTypes,
     maxPages,
     embedAvatars: Boolean(value.embedAvatars),
-    downloadMedia: Boolean(value.downloadMedia)
+    downloadMedia: mediaKinds.length > 0,
+    mediaKinds
   };
 }
 
@@ -219,6 +239,8 @@ async function runExportJob(job, settings, exportsDirectory) {
   if (settings.downloadMedia) {
     argumentsList.push(
       "--download-media",
+      "--media-kinds",
+      settings.mediaKinds.join(","),
       "--media-directory",
       mediaDirectory
     );
@@ -278,13 +300,16 @@ async function runExportJob(job, settings, exportsDirectory) {
       await readFile(path.join(mediaDirectory, "manifest.json"), "utf8")
     );
     mediaSummary = manifest.summary;
+    const mediaLabels = settings.mediaKinds
+      .map((kind) => MEDIA_KIND_LABELS.get(kind) || kind)
+      .join("、");
     await writeFile(
       path.join(archiveRoot, "README.txt"),
       [
         "小红书聊天本地归档",
         "",
         "chatlab.json        ChatLab v0.0.2 聊天记录",
-        "media/              下载成功的图片、表情、卡片封面和音视频",
+        `media/              下载成功的所选资源：${mediaLabels}`,
         "media/manifest.json 原始 URL、本地路径、文件哈希与失败记录",
         "",
         "chatlab.json 的消息 content 同时保留原始 URL 与 ZIP 内本地路径。",

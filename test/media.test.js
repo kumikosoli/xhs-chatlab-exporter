@@ -101,6 +101,11 @@ test("writes media files, manifest and archive-relative paths", async () => {
         await readFile(path.join(directory, "manifest.json"), "utf8")
       );
       assert.equal(manifest.summary.downloaded, 1);
+      assert.deepEqual(manifest.selection.mediaKinds, [
+        "image", "audio", "video", "emoji", "card-cover"
+      ]);
+      assert.equal(manifest.summary.byKind.image.downloaded, 1);
+      assert.equal(manifest.summary.byKind.emoji.failed, 1);
       assert.equal(manifest.failures.length, 1);
 
       const decorated = attachMediaArchivePaths(
@@ -109,6 +114,28 @@ test("writes media files, manifest and archive-relative paths", async () => {
       );
       assert.equal(decorated[0].media[0].archivePath, localPath);
       assert.equal(decorated[0].media[1].archivePath, null);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+test("downloads only requested media resource kinds", async () => {
+  await withAssetServer(async (baseUrl) => {
+    const directory = await mkdtemp(path.join(tmpdir(), "xhs-media-kinds-test-"));
+    try {
+      const messages = [rawMessage([
+        { kind: "image", src: `${baseUrl}/image.png`, alt: "image" },
+        { kind: "emoji", src: `${baseUrl}/missing.png`, alt: "emoji" }
+      ])];
+      const result = await downloadMediaAssets(messages, directory, {
+        mediaKinds: ["image"]
+      });
+      assert.equal(result.total, 1);
+      assert.equal(result.downloaded, 1);
+      assert.equal(result.failed, 0);
+      assert.deepEqual(result.manifest.selection.mediaKinds, ["image"]);
+      assert.deepEqual(Object.keys(result.manifest.summary.byKind), ["image"]);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

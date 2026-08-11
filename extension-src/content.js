@@ -18,6 +18,9 @@ const TIME_ZONE = "Asia/Shanghai";
 const ALLOWED_TYPES = new Set([
   0, 1, 2, 3, 4, 5, 7, 8, 20, 21, 22, 23, 24, 25, 26, 27, 80, 81, 99
 ]);
+const ALLOWED_MEDIA_KINDS = new Set([
+  "image", "audio", "video", "emoji", "card-cover"
+]);
 
 let currentJob = null;
 
@@ -57,6 +60,11 @@ function validateSettings(value) {
   const messageTypes = Array.isArray(value?.messageTypes)
     ? Array.from(new Set(value.messageTypes.map(Number)))
     : [];
+  const mediaKinds = Array.isArray(value?.mediaKinds)
+    ? Array.from(new Set(value.mediaKinds.map(String)))
+    : value?.downloadMedia
+      ? Array.from(ALLOWED_MEDIA_KINDS)
+      : [];
   if (!/^(?:\d+|[0-9a-f]{24})$/i.test(conversationId)) {
     throw new Error("会话 ID 无效");
   }
@@ -75,12 +83,21 @@ function validateSettings(value) {
   ) {
     throw new Error("请至少选择一种有效消息类型");
   }
-  const startTimestamp = value.allHistory
+  if (mediaKinds.some((kind) => !ALLOWED_MEDIA_KINDS.has(kind))) {
+    throw new Error("包含不支持的媒体资源类型");
+  }
+  const allHistory = Boolean(value.allHistory);
+  const start = String(value.start || "").trim();
+  const end = String(value.end || "").trim();
+  if (!allHistory && (!start || !end)) {
+    throw new Error("按日期导出时必须同时选择开始日期和结束日期");
+  }
+  const startTimestamp = allHistory
     ? null
-    : parseTimeBoundary(value.start, { timeZone: TIME_ZONE });
-  const endTimestamp = value.allHistory
+    : parseTimeBoundary(start, { timeZone: TIME_ZONE });
+  const endTimestamp = allHistory
     ? null
-    : parseTimeBoundary(value.end, { timeZone: TIME_ZONE, endOfRange: true });
+    : parseTimeBoundary(end, { timeZone: TIME_ZONE, endOfRange: true });
   if (
     startTimestamp !== null &&
     endTimestamp !== null &&
@@ -102,7 +119,8 @@ function validateSettings(value) {
     endTimestamp,
     maxPages,
     embedAvatars: Boolean(value.embedAvatars),
-    downloadMedia: Boolean(value.downloadMedia)
+    downloadMedia: mediaKinds.length > 0,
+    mediaKinds
   };
 }
 
@@ -263,7 +281,8 @@ async function executeExport(settings) {
         endTimestamp: settings.endTimestamp,
         includeMessageTypes: settings.messageTypes,
         embedAvatars: settings.embedAvatars,
-        downloadMedia: settings.downloadMedia
+        downloadMedia: settings.downloadMedia,
+        mediaKinds: settings.mediaKinds
       }
     });
     if (!response?.accepted) {

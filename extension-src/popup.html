@@ -60,6 +60,7 @@
             <span class="switch" aria-hidden="true"></span>
             <span><strong>全部可访问记录</strong><small>一直加载到网页不再提供更早消息</small></span>
           </label>
+          <p class="hint">关闭后可精确选择起止日期，开始日和结束日均包含在导出范围内。</p>
           <div id="date-fields" class="date-grid is-disabled">
             <label class="field"><span>开始日期</span><input id="start-date" type="date" disabled></label>
             <label class="field"><span>结束日期</span><input id="end-date" type="date" disabled></label>
@@ -69,10 +70,13 @@
             <legend>消息内容</legend>
             <div class="choice-grid">
               <label class="choice"><input type="checkbox" data-types="0" checked><span>文字</span></label>
-              <label class="choice"><input type="checkbox" data-types="1,2,3,5" checked><span>媒体</span></label>
-              <label class="choice"><input type="checkbox" data-types="7,24" checked><span>分享</span></label>
+              <label class="choice"><input type="checkbox" data-types="1" checked><span>图片</span></label>
+              <label class="choice"><input type="checkbox" data-types="2" checked><span>语音</span></label>
+              <label class="choice"><input type="checkbox" data-types="3" checked><span>视频</span></label>
+              <label class="choice"><input type="checkbox" data-types="5" checked><span>表情</span></label>
+              <label class="choice"><input type="checkbox" data-types="7,24" checked><span>分享卡片</span></label>
               <label class="choice"><input type="checkbox" data-types="25" checked><span>回复</span></label>
-              <label class="choice"><input type="checkbox" data-types="80,81" checked><span>系统</span></label>
+              <label class="choice"><input type="checkbox" data-types="80,81" checked><span>系统/撤回</span></label>
               <label class="choice"><input type="checkbox" data-types="4,8,20,21,22,23,26,27,99" checked><span>其他</span></label>
             </div>
           </fieldset>
@@ -81,12 +85,16 @@
             <legend>资源归档</legend>
             <label class="asset-row">
               <input id="embed-avatars" type="checkbox" checked>
-              <span><strong>嵌入成员头像</strong><small>头像直接写入 ChatLab JSON</small></span>
+              <span><strong>嵌入成员头像</strong><small>头像以 Base64 Data URL 写入 ChatLab JSON</small></span>
             </label>
-            <label class="asset-row">
-              <input id="download-media" type="checkbox">
-              <span><strong>下载聊天媒体并生成 ZIP</strong><small>图片、表情、卡片封面和音视频</small></span>
-            </label>
+            <p class="asset-caption"><strong>下载到 ZIP 的资源</strong><small>勾选任意一项即生成 ZIP；未勾选的消息仍可在 JSON 中保留原始链接。</small></p>
+            <div class="choice-grid asset-kind-grid">
+              <label class="choice"><input type="checkbox" data-media-kind="image"><span>图片</span></label>
+              <label class="choice"><input type="checkbox" data-media-kind="audio"><span>语音</span></label>
+              <label class="choice"><input type="checkbox" data-media-kind="video"><span>视频</span></label>
+              <label class="choice"><input type="checkbox" data-media-kind="emoji"><span>表情</span></label>
+              <label class="choice"><input type="checkbox" data-media-kind="card-cover"><span>卡片封面</span></label>
+            </div>
           </fieldset>
 
           <label class="field">

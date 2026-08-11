@@ -15,6 +15,7 @@ const MIME_EXTENSIONS = new Map([
   ["audio/ogg", ".ogg"],
   ["audio/wav", ".wav"]
 ]);
+export const MEDIA_KINDS = ["image", "audio", "video", "emoji", "card-cover"];
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -227,11 +228,13 @@ function folderForKind(kind) {
   }
 }
 
-function collectMedia(rawMessages) {
+function collectMedia(rawMessages, mediaKinds) {
+  const allowedKinds = new Set(mediaKinds);
   const assets = new Map();
   for (const message of rawMessages) {
     for (const media of message.media || []) {
-      if (!media.src) {
+      const kind = media.kind || "image";
+      if (!media.src || !allowedKinds.has(kind)) {
         continue;
       }
       const existing = assets.get(media.src);
@@ -241,7 +244,7 @@ function collectMedia(rawMessages) {
       }
       assets.set(media.src, {
         sourceUrl: media.src,
-        kind: media.kind || "image",
+        kind,
         alt: media.alt || "",
         messageIds: new Set([message.messageId])
       });
@@ -252,12 +255,14 @@ function collectMedia(rawMessages) {
 
 export async function downloadMediaAssets(rawMessages, mediaDirectory, {
   archivePathPrefix = "media",
+  mediaKinds = MEDIA_KINDS,
   concurrency = 6,
   maxBytes = 200 * 1024 * 1024,
   fetchImpl = fetch,
   onProgress = null
 } = {}) {
-  const assets = collectMedia(rawMessages);
+  const selectedKinds = MEDIA_KINDS.filter((kind) => mediaKinds.includes(kind));
+  const assets = collectMedia(rawMessages, selectedKinds);
   await mkdir(mediaDirectory, { recursive: true });
   let completed = 0;
   const results = await mapConcurrent(assets, concurrency, async (item) => {
@@ -297,14 +302,26 @@ export async function downloadMediaAssets(rawMessages, mediaDirectory, {
 
   const succeeded = results.filter((result) => result.localPath);
   const failures = results.filter((result) => result.error);
+  const byKind = Object.fromEntries(selectedKinds.map((kind) => {
+    const matching = results.filter((item) => item.kind === kind);
+    const downloaded = matching.filter((item) => item.localPath);
+    return [kind, {
+      total: matching.length,
+      downloaded: downloaded.length,
+      failed: matching.length - downloaded.length,
+      totalBytes: downloaded.reduce((sum, item) => sum + item.size, 0)
+    }];
+  }));
   const manifest = {
     version: 1,
     generatedAt: Math.floor(Date.now() / 1000),
+    selection: { mediaKinds: selectedKinds },
     summary: {
       total: results.length,
       downloaded: succeeded.length,
       failed: failures.length,
-      totalBytes: succeeded.reduce((sum, item) => sum + item.size, 0)
+      totalBytes: succeeded.reduce((sum, item) => sum + item.size, 0),
+      byKind
     },
     assets: succeeded,
     failures

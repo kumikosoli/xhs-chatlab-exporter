@@ -1,4 +1,4 @@
-/* xhs-chatlab-exporter v0.4.0 — generated; edit extension-src/ */
+/* xhs-chatlab-exporter v0.5.0 — generated; edit extension-src/ */
 (() => {
   // src/page-scripts.js
   function listConversationsPage() {
@@ -315,6 +315,13 @@
     81,
     99
   ]);
+  var ALLOWED_MEDIA_KINDS = /* @__PURE__ */ new Set([
+    "image",
+    "audio",
+    "video",
+    "emoji",
+    "card-cover"
+  ]);
   var currentJob = null;
   function sleep(milliseconds) {
     return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -346,6 +353,7 @@
     const kind = normalizedKind(value?.kind);
     const selfName = String(value?.selfName || "\u6211").trim();
     const messageTypes = Array.isArray(value?.messageTypes) ? Array.from(new Set(value.messageTypes.map(Number))) : [];
+    const mediaKinds = Array.isArray(value?.mediaKinds) ? Array.from(new Set(value.mediaKinds.map(String))) : value?.downloadMedia ? Array.from(ALLOWED_MEDIA_KINDS) : [];
     if (!/^(?:\d+|[0-9a-f]{24})$/i.test(conversationId)) {
       throw new Error("\u4F1A\u8BDD ID \u65E0\u6548");
     }
@@ -361,8 +369,17 @@
     if (messageTypes.length === 0 || messageTypes.some((type) => !Number.isInteger(type) || !ALLOWED_TYPES.has(type))) {
       throw new Error("\u8BF7\u81F3\u5C11\u9009\u62E9\u4E00\u79CD\u6709\u6548\u6D88\u606F\u7C7B\u578B");
     }
-    const startTimestamp = value.allHistory ? null : parseTimeBoundary(value.start, { timeZone: TIME_ZONE });
-    const endTimestamp = value.allHistory ? null : parseTimeBoundary(value.end, { timeZone: TIME_ZONE, endOfRange: true });
+    if (mediaKinds.some((kind2) => !ALLOWED_MEDIA_KINDS.has(kind2))) {
+      throw new Error("\u5305\u542B\u4E0D\u652F\u6301\u7684\u5A92\u4F53\u8D44\u6E90\u7C7B\u578B");
+    }
+    const allHistory = Boolean(value.allHistory);
+    const start = String(value.start || "").trim();
+    const end = String(value.end || "").trim();
+    if (!allHistory && (!start || !end)) {
+      throw new Error("\u6309\u65E5\u671F\u5BFC\u51FA\u65F6\u5FC5\u987B\u540C\u65F6\u9009\u62E9\u5F00\u59CB\u65E5\u671F\u548C\u7ED3\u675F\u65E5\u671F");
+    }
+    const startTimestamp = allHistory ? null : parseTimeBoundary(start, { timeZone: TIME_ZONE });
+    const endTimestamp = allHistory ? null : parseTimeBoundary(end, { timeZone: TIME_ZONE, endOfRange: true });
     if (startTimestamp !== null && endTimestamp !== null && startTimestamp > endTimestamp) {
       throw new Error("\u5F00\u59CB\u65E5\u671F\u4E0D\u80FD\u665A\u4E8E\u7ED3\u675F\u65E5\u671F");
     }
@@ -380,7 +397,8 @@
       endTimestamp,
       maxPages,
       embedAvatars: Boolean(value.embedAvatars),
-      downloadMedia: Boolean(value.downloadMedia)
+      downloadMedia: mediaKinds.length > 0,
+      mediaKinds
     };
   }
   async function scanConversations() {
@@ -531,7 +549,8 @@
           endTimestamp: settings.endTimestamp,
           includeMessageTypes: settings.messageTypes,
           embedAvatars: settings.embedAvatars,
-          downloadMedia: settings.downloadMedia
+          downloadMedia: settings.downloadMedia,
+          mediaKinds: settings.mediaKinds
         }
       });
       if (!response?.accepted) {

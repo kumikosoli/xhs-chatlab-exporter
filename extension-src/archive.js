@@ -19,6 +19,14 @@ const MIME_EXTENSIONS = new Map([
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const MAX_MEDIA_BYTES = 200 * 1024 * 1024;
 const MAX_ARCHIVE_BYTES = 768 * 1024 * 1024;
+const MEDIA_KIND_ORDER = ["image", "audio", "video", "emoji", "card-cover"];
+const MEDIA_KIND_LABELS = new Map([
+  ["image", "图片"],
+  ["audio", "语音"],
+  ["video", "视频"],
+  ["emoji", "表情"],
+  ["card-cover", "卡片封面"]
+]);
 
 function safeFilenamePart(value) {
   const cleaned = String(value || "")
@@ -233,11 +241,13 @@ function folderForKind(kind) {
   }
 }
 
-function collectMedia(rawMessages) {
+function collectMedia(rawMessages, mediaKinds) {
+  const allowedKinds = new Set(mediaKinds);
   const assets = new Map();
   for (const message of rawMessages) {
     for (const media of message.media || []) {
-      if (!media.src) {
+      const kind = media.kind || "image";
+      if (!media.src || !allowedKinds.has(kind)) {
         continue;
       }
       const existing = assets.get(media.src);
@@ -246,7 +256,7 @@ function collectMedia(rawMessages) {
       } else {
         assets.set(media.src, {
           sourceUrl: media.src,
-          kind: media.kind || "image",
+          kind,
           alt: media.alt || "",
           messageIds: new Set([message.messageId])
         });
@@ -256,8 +266,22 @@ function collectMedia(rawMessages) {
   return Array.from(assets.values());
 }
 
-async function downloadMedia(rawMessages, onProgress) {
-  const assets = collectMedia(rawMessages);
+function mediaSummary(results, selectedKinds) {
+  return Object.fromEntries(selectedKinds.map((kind) => {
+    const matching = results.filter((item) => item.kind === kind);
+    const succeeded = matching.filter((item) => item.localPath);
+    return [kind, {
+      total: matching.length,
+      downloaded: succeeded.length,
+      failed: matching.length - succeeded.length,
+      totalBytes: succeeded.reduce((sum, item) => sum + item.size, 0)
+    }];
+  }));
+}
+
+async function downloadMedia(rawMessages, mediaKinds, onProgress) {
+  const selectedKinds = MEDIA_KIND_ORDER.filter((kind) => mediaKinds.includes(kind));
+  const assets = collectMedia(rawMessages, selectedKinds);
   let completed = 0;
   let totalBytes = 0;
   const results = await mapConcurrent(assets, 4, async (item) => {
@@ -310,11 +334,13 @@ async function downloadMedia(rawMessages, onProgress) {
     manifest: {
       version: 1,
       generatedAt: Math.floor(Date.now() / 1000),
+      selection: { mediaKinds: selectedKinds },
       summary: {
         total: results.length,
         downloaded: succeeded.length,
         failed: failures.length,
-        totalBytes: succeeded.reduce((sum, item) => sum + item.size, 0)
+        totalBytes: succeeded.reduce((sum, item) => sum + item.size, 0),
+        byKind: mediaSummary(results, selectedKinds)
       },
       assets: succeeded.map(({ bytes: _bytes, error: _error, ...item }) => item),
       failures: failures.map(({ bytes: _bytes, ...item }) => item)
@@ -380,7 +406,10 @@ export async function buildExportArtifact(payload, onProgress = () => {}) {
   let mediaResult = null;
   let preparedMessages = payload.rawMessages;
   if (payload.downloadMedia) {
-    mediaResult = await downloadMedia(selectedRawMessages, onProgress);
+    const mediaKinds = Array.isArray(payload.mediaKinds)
+      ? payload.mediaKinds
+      : MEDIA_KIND_ORDER;
+    mediaResult = await downloadMedia(selectedRawMessages, mediaKinds, onProgress);
     preparedMessages = attachMediaPaths(
       payload.rawMessages,
       mediaResult.localPathByUrl
@@ -406,6 +435,9 @@ export async function buildExportArtifact(payload, onProgress = () => {}) {
 
   onProgress({ stage: "packaging", detail: "正在生成 ZIP…", progress: null });
   const root = baseName;
+  const selectedMediaLabels = mediaResult.manifest.selection.mediaKinds
+    .map((kind) => MEDIA_KIND_LABELS.get(kind) || kind)
+    .join("、");
   const files = {
     [`${root}/chatlab.json`]: strToU8(jsonText),
     [`${root}/README.txt`]: strToU8(
@@ -413,7 +445,7 @@ export async function buildExportArtifact(payload, onProgress = () => {}) {
         "小红书聊天本地归档（Chrome / Edge 扩展）",
         "",
         "chatlab.json        ChatLab v0.0.2 聊天记录",
-        "media/              下载成功的图片、表情、卡片封面和音视频",
+        `media/              下载成功的所选资源：${selectedMediaLabels}`,
         "media/manifest.json 原始 URL、本地路径、文件哈希与失败记录",
         "",
         "所有数据均在本机浏览器中处理。请妥善保管私人聊天内容。"

@@ -26,11 +26,11 @@ macOS 用户可以任选一种方式。Windows 和 Linux 用户请使用 Chrome/
 - 提供本地网页控制台，可从页面打开官方登录、搜索会话和下载结果
 - 自动区分私聊和群聊，也可用 `--kind` 强制校验
 - 用 `--start` / `--end` 设置包含端点的时间范围
-- 可选择只导出文字、媒体、分享、回复、系统消息或未知消息
+- 可按文字、图片、语音、视频、表情、分享卡片、回复、系统/撤回和其他消息分别勾选
 - 自动滚动到所需历史时间；尚未到达时不会静默输出残缺结果
 - 导出文字、图片、表情、笔记分享、回复、系统提示、撤回，以及未知消息的可读占位
 - 可将成员头像下载并以内嵌 Data URL 写入 ChatLab
-- 可下载聊天媒体，生成带 `manifest.json` 的完整 ZIP 归档
+- 图片、语音、视频、表情和卡片封面可分别选择是否下载到 ZIP
 - 保留原始 `platformMessageId`，便于 ChatLab 去重
 - 输出前执行本地严格校验
 - 零运行时 npm 依赖
@@ -39,7 +39,7 @@ macOS 用户可以任选一种方式。Windows 和 Linux 用户请使用 Chrome/
 
 仓库中的 `chrome-extension/` 是已经构建完成、可直接加载的 Manifest V3 扩展。
 
-也可以下载仓库内的 [Chrome/Edge v0.4.0 ZIP](./releases/xhs-chatlab-exporter-chrome-edge-v0.4.0.zip)，解压后再加载该文件夹。
+也可以下载仓库内的 [Chrome/Edge v0.5.0 ZIP](./releases/xhs-chatlab-exporter-chrome-edge-v0.5.0.zip)，解压后再加载该文件夹。
 
 支持 Windows、macOS 和 Linux。直接加载仓库内的成品扩展不需要安装 Node.js。
 
@@ -48,14 +48,17 @@ macOS 用户可以任选一种方式。Windows 和 Linux 用户请使用 Chrome/
 3. 开启“开发者模式”。
 4. 点击“加载已解压的扩展”，选择仓库中的整个 `chrome-extension` 文件夹。
 5. 打开并登录 `https://www.xiaohongshu.com/chat/`，进入任意聊天。
-6. 点击工具栏中的“小红书聊天归档器”，选择会话和导出范围。
+6. 点击工具栏中的“小红书聊天归档器”，选择会话、日期、消息类型、头像与需要下载的资源。
 
 扩展的全部抓取、头像嵌入和 ZIP 打包都在本机浏览器中完成。关闭弹窗后，已启动的导出仍会继续；完成时由 Chrome/Edge 显示保存对话框。
 
-导出结果有两种形式：
+日期与内容都可以精确控制：
 
-- 未勾选“下载聊天媒体”：下载一个 ChatLab JSON；头像可直接以内嵌 Data URL 保存在 JSON 中。
-- 勾选“下载聊天媒体”：下载一个 ZIP，其中包含 `chatlab.json`、媒体文件、`manifest.json` 和说明文件。
+- 时间可以选择“全部可访问记录”，也可以指定包含端点的开始日期和结束日期。
+- 消息内容可分别勾选：文字、图片、语音、视频、表情、分享卡片、回复、系统/撤回和其他。
+- “嵌入成员头像”独立控制；开启后，头像以 Base64 Data URL 写入 ChatLab JSON。
+- ZIP 资源可分别勾选图片、语音、视频、表情和卡片封面。勾选任意一项就生成 ZIP；一项都不勾选则只下载 ChatLab JSON。
+- 消息类型与资源下载相互独立。例如可以在 JSON 中保留图片消息及原始 URL，但不把图片文件下载进 ZIP。
 
 如需从源码重新构建：
 
@@ -112,7 +115,7 @@ http://127.0.0.1:4177
 2. 回到控制台点击“刷新连接”。
 3. 搜索并选择联系人或群聊。
 4. 选择全部历史或日期范围。
-5. 勾选需要的消息内容类别；按需选择“嵌入成员头像”和“下载聊天媒体”。
+5. 分别勾选需要的消息类型、Base64 成员头像，以及要下载到 ZIP 的图片、语音、视频、表情或卡片封面。
 6. 点击“开始导出”。页面会显示聊天加载、头像、媒体和打包进度。
 7. 完成后下载 JSON/ZIP，或在 Finder 中显示本地原件。
 
@@ -120,7 +123,7 @@ http://127.0.0.1:4177
 
 网页导出的本地原件保存在仓库的 `exports/` 目录，该目录默认不会进入 Git。服务只监听 `127.0.0.1`，每次启动还会生成随机令牌保护写操作。
 
-“嵌入成员头像”默认开启。头像会成为 JSON 内的 `data:image/...;base64,...`，因此单个 JSON 文件就能保留头像。“下载聊天媒体”默认关闭；开启后，下载结果是 ZIP：
+“嵌入成员头像”默认开启。头像会成为 JSON 内的 `data:image/...;base64,...`，因此单个 JSON 文件就能保留头像。图片、语音、视频、表情和卡片封面默认不下载；勾选任意资源类型后，下载结果是 ZIP：
 
 ```text
 xiaohongshu-会话名-时间/
@@ -135,7 +138,7 @@ xiaohongshu-会话名-时间/
     └── videos/
 ```
 
-媒体消息的 `content` 同时保留小红书原始 URL 和 ZIP 内的 `[本地文件] media/...` 路径。`manifest.json` 记录原始 URL、本地路径、类型、大小和 SHA-256；个别资源下载失败时也会记录原因，不会让整次导出作废。
+媒体消息的 `content` 同时保留小红书原始 URL 和 ZIP 内的 `[本地文件] media/...` 路径。`manifest.json` 记录本次选择的资源类型、各类型统计、原始 URL、本地路径、类型、大小和 SHA-256；个别资源下载失败时也会记录原因，不会让整次导出作废。
 
 如不想自动打开浏览器：
 
@@ -163,7 +166,7 @@ node ./bin/xhs-chat-export.js \
   --output ./contact.chatlab.json
 ```
 
-同时嵌入头像并下载聊天媒体：
+同时嵌入头像，并只下载图片、表情和卡片封面：
 
 ```bash
 node ./bin/xhs-chat-export.js \
@@ -172,6 +175,7 @@ node ./bin/xhs-chat-export.js \
   --end 2026-07-29 \
   --embed-avatars \
   --download-media \
+  --media-kinds image,emoji,card-cover \
   --output ./contact.chatlab.json
 ```
 
@@ -232,7 +236,8 @@ unixSeconds = (hex(lastMessageIdSegment) >> 24) - 0x180000000
     --message-types <列表>
                            仅导出指定 ChatLab 类型，如 0,1,5,25
     --embed-avatars        下载头像并以 Data URL 写入 ChatLab JSON
-    --download-media       下载图片、表情、卡片封面和音视频
+    --download-media       下载聊天资源；未指定种类时下载全部支持类型
+    --media-kinds <列表>   仅下载 image,audio,video,emoji,card-cover 中的指定类型
     --media-directory <目录>
                            媒体保存目录；默认位于 JSON 文件旁
 -o, --output <文件>       输出路径

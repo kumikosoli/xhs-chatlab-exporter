@@ -26,7 +26,7 @@ const elements = {
   endDate: document.querySelector("#end-date"),
   typeChoices: Array.from(document.querySelectorAll("[data-types]")),
   embedAvatars: document.querySelector("#embed-avatars"),
-  downloadMedia: document.querySelector("#download-media"),
+  mediaKindChoices: Array.from(document.querySelectorAll("[data-media-kind]")),
   selfName: document.querySelector("#self-name"),
   startExport: document.querySelector("#start-export"),
   jobPanel: document.querySelector("#job-panel"),
@@ -112,6 +112,8 @@ function setDateMode() {
   const disabled = elements.allHistory.checked;
   elements.startDate.disabled = disabled;
   elements.endDate.disabled = disabled;
+  elements.startDate.required = !disabled;
+  elements.endDate.required = !disabled;
   elements.dateFields.classList.toggle("is-disabled", disabled);
 }
 
@@ -123,6 +125,12 @@ function selectedMessageTypes() {
         .flatMap((choice) => choice.dataset.types.split(",").map(Number))
     )
   );
+}
+
+function selectedMediaKinds() {
+  return elements.mediaKindChoices
+    .filter((choice) => choice.checked)
+    .map((choice) => choice.dataset.mediaKind);
 }
 
 function stageTitle(stage) {
@@ -220,8 +228,11 @@ async function savePreferences() {
   await chrome.storage.local.set({
     exportPreferences: {
       allHistory: elements.allHistory.checked,
+      start: elements.startDate.value,
+      end: elements.endDate.value,
+      messageTypes: selectedMessageTypes(),
       embedAvatars: elements.embedAvatars.checked,
-      downloadMedia: elements.downloadMedia.checked,
+      mediaKinds: selectedMediaKinds(),
       selfName: elements.selfName.value
     }
   });
@@ -233,8 +244,24 @@ async function restorePreferences() {
     return;
   }
   elements.allHistory.checked = exportPreferences.allHistory !== false;
+  elements.startDate.value = exportPreferences.start || "";
+  elements.endDate.value = exportPreferences.end || "";
+  if (Array.isArray(exportPreferences.messageTypes)) {
+    const savedTypes = new Set(exportPreferences.messageTypes.map(Number));
+    for (const choice of elements.typeChoices) {
+      const types = choice.dataset.types.split(",").map(Number);
+      choice.checked = types.some((type) => savedTypes.has(type));
+    }
+  }
   elements.embedAvatars.checked = exportPreferences.embedAvatars !== false;
-  elements.downloadMedia.checked = Boolean(exportPreferences.downloadMedia);
+  const savedMediaKinds = Array.isArray(exportPreferences.mediaKinds)
+    ? new Set(exportPreferences.mediaKinds)
+    : exportPreferences.downloadMedia
+      ? new Set(elements.mediaKindChoices.map((choice) => choice.dataset.mediaKind))
+      : new Set();
+  for (const choice of elements.mediaKindChoices) {
+    choice.checked = savedMediaKinds.has(choice.dataset.mediaKind);
+  }
   elements.selfName.value = exportPreferences.selfName || "我";
   setDateMode();
 }
@@ -263,6 +290,7 @@ elements.exportForm.addEventListener("submit", async (event) => {
     return;
   }
   try {
+    const mediaKinds = selectedMediaKinds();
     await savePreferences();
     const response = await sendToTab("START_EXPORT", {
       settings: {
@@ -276,7 +304,8 @@ elements.exportForm.addEventListener("submit", async (event) => {
         messageTypes,
         maxPages: elements.allHistory.checked ? 2000 : 500,
         embedAvatars: elements.embedAvatars.checked,
-        downloadMedia: elements.downloadMedia.checked
+        downloadMedia: mediaKinds.length > 0,
+        mediaKinds
       }
     });
     renderJob(response.job);

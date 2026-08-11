@@ -124,6 +124,7 @@
                   <small>一直加载到网页不再提供更早消息</small>
                 </span>
               </label>
+              <p class="asset-note">关闭后可精确选择起止日期，开始日和结束日均包含在导出范围内。</p>
               <div id="date-range" class="date-grid is-disabled">
                 <label>
                   <span>开始日期</span>
@@ -146,14 +147,29 @@
                   <span><strong>文字</strong><small>普通文本</small></span>
                 </label>
                 <label class="content-choice">
-                  <input type="checkbox" data-types="1,2,3,4,5" checked>
+                  <input type="checkbox" data-types="1" checked>
                   <span class="content-icon" aria-hidden="true">图</span>
-                  <span><strong>媒体</strong><small>图片、表情、音视频</small></span>
+                  <span><strong>图片</strong><small>图片消息</small></span>
                 </label>
                 <label class="content-choice">
-                  <input type="checkbox" data-types="7,8,20,21,22,23,24,26,27" checked>
+                  <input type="checkbox" data-types="2" checked>
+                  <span class="content-icon" aria-hidden="true">声</span>
+                  <span><strong>语音</strong><small>语音消息</small></span>
+                </label>
+                <label class="content-choice">
+                  <input type="checkbox" data-types="3" checked>
+                  <span class="content-icon" aria-hidden="true">视</span>
+                  <span><strong>视频</strong><small>视频消息</small></span>
+                </label>
+                <label class="content-choice">
+                  <input type="checkbox" data-types="5" checked>
+                  <span class="content-icon" aria-hidden="true">表</span>
+                  <span><strong>表情</strong><small>贴纸与表情</small></span>
+                </label>
+                <label class="content-choice">
+                  <input type="checkbox" data-types="7,24" checked>
                   <span class="content-icon" aria-hidden="true">享</span>
-                  <span><strong>分享</strong><small>笔记与卡片</small></span>
+                  <span><strong>分享卡片</strong><small>笔记与卡片</small></span>
                 </label>
                 <label class="content-choice">
                   <input type="checkbox" data-types="25" checked>
@@ -163,10 +179,10 @@
                 <label class="content-choice">
                   <input type="checkbox" data-types="80,81" checked>
                   <span class="content-icon" aria-hidden="true">系</span>
-                  <span><strong>系统</strong><small>状态与撤回</small></span>
+                  <span><strong>系统/撤回</strong><small>状态与撤回</small></span>
                 </label>
                 <label class="content-choice">
-                  <input type="checkbox" data-types="99" checked>
+                  <input type="checkbox" data-types="4,8,20,21,22,23,26,27,99" checked>
                   <span class="content-icon" aria-hidden="true">其</span>
                   <span><strong>其他</strong><small>未知格式占位</small></span>
                 </label>
@@ -181,20 +197,20 @@
                   <span class="asset-check" aria-hidden="true">✓</span>
                   <span>
                     <strong>嵌入成员头像</strong>
-                    <small>下载头像并以 Data URL 写入 ChatLab JSON</small>
-                  </span>
-                </label>
-                <label class="asset-choice">
-                  <input id="download-media" type="checkbox">
-                  <span class="asset-check" aria-hidden="true">↓</span>
-                  <span>
-                    <strong>下载聊天媒体</strong>
-                    <small>生成含 media/ 和 manifest 的 ZIP，可能耗时较长</small>
+                    <small>下载头像并以 Base64 Data URL 写入 ChatLab JSON</small>
                   </span>
                 </label>
               </div>
+              <p class="asset-subtitle">下载到 ZIP 的资源</p>
+              <div class="content-grid media-kind-grid">
+                <label class="content-choice"><input type="checkbox" data-media-kind="image"><span class="content-icon" aria-hidden="true">图</span><span><strong>图片</strong><small>media/images</small></span></label>
+                <label class="content-choice"><input type="checkbox" data-media-kind="audio"><span class="content-icon" aria-hidden="true">声</span><span><strong>语音</strong><small>media/audio</small></span></label>
+                <label class="content-choice"><input type="checkbox" data-media-kind="video"><span class="content-icon" aria-hidden="true">视</span><span><strong>视频</strong><small>media/videos</small></span></label>
+                <label class="content-choice"><input type="checkbox" data-media-kind="emoji"><span class="content-icon" aria-hidden="true">表</span><span><strong>表情</strong><small>media/stickers</small></span></label>
+                <label class="content-choice"><input type="checkbox" data-media-kind="card-cover"><span class="content-icon" aria-hidden="true">封</span><span><strong>卡片封面</strong><small>media/card-covers</small></span></label>
+              </div>
               <p class="asset-note">
-                下载失败的资源仍会保留原始 URL，并在 manifest 中记录原因。
+                勾选任意资源即生成 ZIP。未勾选或下载失败的资源仍保留原始 URL，manifest 会记录选择与失败原因。
               </p>
             </fieldset>
 

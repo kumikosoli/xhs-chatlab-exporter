@@ -21,11 +21,12 @@ import {
 import {
   attachMediaArchivePaths,
   downloadMediaAssets,
-  embedAvatarData
+  embedAvatarData,
+  MEDIA_KINDS
 } from "./media.js";
 import { toChatLab } from "./xhs.js";
 
-const VERSION = "0.4.0";
+const VERSION = "0.5.0";
 const VALUE_OPTIONS = new Map([
   ["--conversation", "conversation"],
   ["-c", "conversation"],
@@ -37,6 +38,7 @@ const VALUE_OPTIONS = new Map([
   ["-o", "output"],
   ["--kind", "kind"],
   ["--message-types", "messageTypes"],
+  ["--media-kinds", "mediaKinds"],
   ["--media-directory", "mediaDirectory"],
   ["--tab-url-contains", "tabUrlContains"],
   ["--max-pages", "maxPages"],
@@ -62,6 +64,7 @@ xhs-chat-export — 将小红书网页版聊天导出为 ChatLab JSON
                             仅导出指定 ChatLab 类型，如 0,1,5,25
       --embed-avatars       下载头像并以 Data URL 写入 ChatLab JSON
       --download-media      将图片、表情、卡片封面和音视频保存到本地
+      --media-kinds <列表>  仅下载指定资源：image,audio,video,emoji,card-cover
       --media-directory <目录>
                             媒体保存目录；默认位于 JSON 文件旁
   -o, --output <文件>       输出 .json 路径
@@ -102,6 +105,7 @@ export function parseArgs(argv) {
     messageTypes: null,
     embedAvatars: false,
     downloadMedia: false,
+    mediaKinds: null,
     mediaDirectory: null,
     tabUrlContains: "xiaohongshu.com/chat/",
     maxPages: 500,
@@ -171,6 +175,22 @@ export function parseArgs(argv) {
       throw new Error("--message-types 包含无效的 ChatLab 消息类型");
     }
     options.messageTypes = Array.from(new Set(parsedTypes));
+  }
+  if (options.mediaKinds !== null) {
+    const parsedKinds = String(options.mediaKinds)
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+    if (
+      parsedKinds.length === 0 ||
+      parsedKinds.some((value) => !MEDIA_KINDS.includes(value))
+    ) {
+      throw new Error("--media-kinds 包含无效的媒体资源类型");
+    }
+    options.mediaKinds = Array.from(new Set(parsedKinds));
+    options.downloadMedia = true;
+  } else if (options.downloadMedia) {
+    options.mediaKinds = [...MEDIA_KINDS];
   }
   if (options.mediaDirectory && !options.downloadMedia) {
     throw new Error("--media-directory 只能与 --download-media 一起使用");
@@ -557,6 +577,7 @@ export async function run(argv) {
       mediaDirectory,
       {
         archivePathPrefix,
+        mediaKinds: options.mediaKinds,
         onProgress: ({ completed, total }) => {
           if (completed === total || completed % 5 === 0) {
             console.error(`媒体下载 ${completed}/${total}`);

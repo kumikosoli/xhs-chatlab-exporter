@@ -30,7 +30,7 @@ const elements = {
   selfName: document.querySelector("#self-name"),
   contentChoices: Array.from(document.querySelectorAll("[data-types]")),
   embedAvatars: document.querySelector("#embed-avatars"),
-  downloadMedia: document.querySelector("#download-media"),
+  mediaKindChoices: Array.from(document.querySelectorAll("[data-media-kind]")),
   startExport: document.querySelector("#start-export"),
   jobPanel: document.querySelector("#job-panel"),
   progressCount: document.querySelector("#progress-count"),
@@ -170,6 +170,21 @@ function selectedMessageTypes() {
         .flatMap((input) => input.dataset.types.split(",").map(Number))
     )
   );
+}
+
+function selectedMediaKinds() {
+  return elements.mediaKindChoices
+    .filter((input) => input.checked)
+    .map((input) => input.dataset.mediaKind);
+}
+
+function setDateMode() {
+  const disabled = elements.allHistory.checked;
+  elements.dateRange.classList.toggle("is-disabled", disabled);
+  elements.startDate.disabled = disabled;
+  elements.endDate.disabled = disabled;
+  elements.startDate.required = !disabled;
+  elements.endDate.required = !disabled;
 }
 
 function updateSubmitState() {
@@ -407,6 +422,7 @@ async function startExport(event) {
     toast("请至少选择一种消息内容");
     return;
   }
+  const mediaKinds = selectedMediaKinds();
   const payload = {
     conversationId: state.selected.id,
     conversationName: state.selected.name,
@@ -418,7 +434,8 @@ async function startExport(event) {
     messageTypes,
     maxPages: elements.allHistory.checked ? 2000 : 500,
     embedAvatars: elements.embedAvatars.checked,
-    downloadMedia: elements.downloadMedia.checked
+    downloadMedia: mediaKinds.length > 0,
+    mediaKinds
   };
   try {
     elements.startExport.disabled = true;
@@ -461,12 +478,7 @@ for (const segment of elements.segments) {
     renderConversations();
   });
 }
-elements.allHistory.addEventListener("change", () => {
-  const disabled = elements.allHistory.checked;
-  elements.dateRange.classList.toggle("is-disabled", disabled);
-  elements.startDate.disabled = disabled;
-  elements.endDate.disabled = disabled;
-});
+elements.allHistory.addEventListener("change", setDateMode);
 elements.contentChoices.forEach((choice) =>
   choice.addEventListener("change", updateSubmitState)
 );
@@ -487,6 +499,7 @@ elements.revealResult.addEventListener("click", async () => {
 
 async function initialize() {
   try {
+    setDateMode();
     const config = await api("/api/config");
     state.token = config.token;
     await refreshConnection();

@@ -21,6 +21,8 @@ test("parses the main export options", () => {
     "0,1,5,25",
     "--embed-avatars",
     "--download-media",
+    "--media-kinds",
+    "image,audio",
     "--media-directory",
     "./media-output",
     "--force"
@@ -31,6 +33,7 @@ test("parses the main export options", () => {
   assert.deepEqual(options.messageTypes, [0, 1, 5, 25]);
   assert.equal(options.embedAvatars, true);
   assert.equal(options.downloadMedia, true);
+  assert.deepEqual(options.mediaKinds, ["image", "audio"]);
   assert.equal(options.mediaDirectory, "./media-output");
   assert.equal(options.force, true);
 });
@@ -65,5 +68,18 @@ test("rejects invalid kinds and missing option values", () => {
         "0,12345"
       ]),
     /无效/
+  );
+  assert.throws(
+    () => parseArgs([
+      "--conversation",
+      "A",
+      "--media-kinds",
+      "image,document"
+    ]),
+    /媒体资源类型/
+  );
+  assert.deepEqual(
+    parseArgs(["--conversation", "A", "--download-media"]).mediaKinds,
+    ["image", "audio", "video", "emoji", "card-cover"]
   );
 });

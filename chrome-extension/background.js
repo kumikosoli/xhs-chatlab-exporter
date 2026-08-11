@@ -1,4 +1,4 @@
-/* xhs-chatlab-exporter v0.4.0 — generated; edit extension-src/ */
+/* xhs-chatlab-exporter v0.5.0 — generated; edit extension-src/ */
 (() => {
   // extension-src/background.js
   var CHANNEL = "xhs-chatlab-exporter";
