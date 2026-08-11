@@ -2,7 +2,23 @@
 
 从**已经登录的小红书网页**读取指定私聊或群聊，按时间范围加载历史消息，并导出为 [ChatLab 标准格式 v0.0.2](https://docs.chatlab.fun/cn/standard/chatlab-format) JSON。可选嵌入成员头像，或生成包含聊天图片、表情、卡片封面和音视频的 ZIP 归档。
 
-项目同时提供适用于 Windows、macOS、Linux 的 Chrome/Edge 扩展，以及原有的 macOS Safari 本地工具。它不使用 Computer Use，不靠截图或 OCR，也不会读取 Cookie、调用私有接口或发送消息。
+项目提供两种使用方式：适用于 Windows、macOS、Linux 的 Chrome/Edge 扩展，以及仅适用于 macOS 的 Safari 本地工具。两种方式使用相同的消息解析与 ChatLab 转换核心；都不依赖 Computer Use，不靠截图或 OCR，也不会读取 Cookie、调用私有接口或发送消息。
+
+## 重要：账号区域限制
+
+- 使用中国大陆手机号注册或归属中国大陆地区的小红书账号，可以登录 `xiaohongshu.com`；网页版提供聊天记录界面时，本工具可以导出。
+- 国际账号（使用非中国大陆手机号）只能登录 `rednote.com`。RedNote 网页目前没有聊天记录界面，因此无法使用本工具导出聊天记录。
+- 这一限制与 Google 账号所在地区无关，关键在于小红书账号所属区域以及对应网站是否提供聊天界面。
+- 本工具不会也不能绕过小红书或 RedNote 的账号区域与产品功能限制。
+
+## 选择使用方式
+
+| 使用方式 | 支持系统 | 浏览器 | 是否需要 Node.js | 适合场景 |
+|---|---|---|---|---|
+| Chrome/Edge 扩展 | Windows、macOS、Linux | Chrome/Edge 116+ | 直接加载成品时不需要 | 跨平台使用；在浏览器里选择会话并下载 JSON/ZIP |
+| Safari 本地版 | 仅 macOS | Safari | 需要 Node.js 20+ | 使用本地网页控制台或命令行；保留本地原件并支持脚本化 |
+
+macOS 用户可以任选一种方式。Windows 和 Linux 用户请使用 Chrome/Edge 扩展；它不要求 Mac，也不需要 Safari。
 
 ## 能做什么
 
@@ -19,11 +35,13 @@
 - 输出前执行本地严格校验
 - 零运行时 npm 依赖
 
-## Chrome / Edge 扩展（Windows 推荐）
+## 方法一：Chrome / Edge 扩展
 
 仓库中的 `chrome-extension/` 是已经构建完成、可直接加载的 Manifest V3 扩展。
 
 也可以下载仓库内的 [Chrome/Edge v0.4.0 ZIP](./releases/xhs-chatlab-exporter-chrome-edge-v0.4.0.zip)，解压后再加载该文件夹。
+
+支持 Windows、macOS 和 Linux。直接加载仓库内的成品扩展不需要安装 Node.js。
 
 1. 下载或克隆本仓库。
 2. Chrome 打开 `chrome://extensions/`；Edge 打开 `edge://extensions/`。
@@ -33,6 +51,11 @@
 6. 点击工具栏中的“小红书聊天归档器”，选择会话和导出范围。
 
 扩展的全部抓取、头像嵌入和 ZIP 打包都在本机浏览器中完成。关闭弹窗后，已启动的导出仍会继续；完成时由 Chrome/Edge 显示保存对话框。
+
+导出结果有两种形式：
+
+- 未勾选“下载聊天媒体”：下载一个 ChatLab JSON；头像可直接以内嵌 Data URL 保存在 JSON 中。
+- 勾选“下载聊天媒体”：下载一个 ZIP，其中包含 `chatlab.json`、媒体文件、`manifest.json` 和说明文件。
 
 如需从源码重新构建：
 
@@ -44,7 +67,11 @@ npm run package:extension
 
 构建目录为 `chrome-extension/`，ZIP 安装包输出到 `releases/`。最低支持 Chrome/Edge 116。
 
-## Safari 本地版环境要求
+## 方法二：macOS Safari 本地版
+
+Safari 本地版由本机 Node.js 程序控制当前已登录的小红书 Safari 标签页，提供网页控制台和命令行两种入口。它只支持 macOS，不适用于 Windows 或 Linux。
+
+### 环境要求
 
 - macOS
 - Safari
@@ -63,9 +90,9 @@ npm run package:extension
 
 如果菜单栏没有“开发”，先在 Safari 设置的高级/开发者选项中显示开发菜单。首次运行时，macOS 也可能要求允许当前终端自动化控制 Safari。
 
-## 网页控制台（推荐）
+### 网页控制台（推荐）
 
-以下网页控制台属于 Safari 本地版；Windows 用户直接使用上面的 Chrome/Edge 扩展即可。
+以下网页控制台属于 Safari 本地版；Windows 和 Linux 用户直接使用上面的 Chrome/Edge 扩展即可。
 
 在仓库目录运行：
 
@@ -116,7 +143,7 @@ xiaohongshu-会话名-时间/
 npm run web -- --no-open
 ```
 
-## 命令行使用
+### 命令行使用
 
 仓库没有第三方运行时依赖，可以直接执行：
 
