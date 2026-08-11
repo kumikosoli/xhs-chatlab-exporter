@@ -25,7 +25,7 @@ import {
 } from "./media.js";
 import { toChatLab } from "./xhs.js";
 
-const VERSION = "0.3.0";
+const VERSION = "0.4.0";
 const VALUE_OPTIONS = new Map([
   ["--conversation", "conversation"],
   ["-c", "conversation"],

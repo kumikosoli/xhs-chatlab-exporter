@@ -1,7 +1,7 @@
 {
   "name": "xhs-chatlab-exporter",
-  "version": "0.3.0",
-  "description": "Export Xiaohongshu Web chats, avatars and media from a signed-in Safari tab to ChatLab.",
+  "version": "0.4.0",
+  "description": "Export Xiaohongshu Web chats, avatars and media to ChatLab from Safari, Chrome or Edge.",
   "type": "module",
   "private": true,
   "bin": {
@@ -11,8 +11,10 @@
   "scripts": {
     "export": "node ./bin/xhs-chat-export.js",
     "web": "node ./bin/xhs-chat-web.js",
+    "build:extension": "node ./scripts/build-extension.js",
+    "package:extension": "npm run build:extension && node ./scripts/package-extension.js",
     "test": "node --test",
-    "check": "node --check ./bin/xhs-chat-export.js && node --check ./bin/xhs-chat-web.js && node --check ./src/cli.js && node --check ./src/media.js && node --check ./src/server.js && node --check ./web/app.js"
+    "check": "node --check ./bin/xhs-chat-export.js && node --check ./bin/xhs-chat-web.js && node --check ./src/cli.js && node --check ./src/media.js && node --check ./src/server.js && node --check ./src/sha256.js && node --check ./web/app.js && node --check ./extension-src/content.js && node --check ./extension-src/background.js && node --check ./extension-src/archive.js && node --check ./extension-src/offscreen.js && node --check ./extension-src/popup.js && node --check ./scripts/build-extension.js && node --check ./scripts/package-extension.js"
   },
   "engines": {
     "node": ">=20"
@@ -21,5 +23,9 @@
     "kumikosoli",
     "OpenAI Codex (AI collaborator)"
   ],
+  "devDependencies": {
+    "esbuild": "^0.25.8",
+    "fflate": "^0.8.2"
+  },
   "license": "MIT"
 }

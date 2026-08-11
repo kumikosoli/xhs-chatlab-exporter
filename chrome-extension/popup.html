@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>小红书聊天归档器</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand-mark" aria-hidden="true">书</div>
+      <div>
+        <h1>聊天归档器</h1>
+        <p>Chrome / Edge · ChatLab</p>
+      </div>
+      <span id="connection-pill" class="pill is-checking">检查中</span>
+    </header>
+
+    <main>
+      <section id="connection-card" class="connection-card">
+        <strong id="connection-title">正在连接小红书页面…</strong>
+        <p id="connection-detail">请保持已登录的聊天页面打开。</p>
+        <div class="button-row">
+          <button id="open-chat" class="button secondary" type="button">打开小红书聊天</button>
+          <button id="retry" class="button secondary" type="button">重新连接</button>
+        </div>
+      </section>
+
+      <form id="export-form" hidden>
+        <section class="panel">
+          <div class="section-heading">
+            <div>
+              <span>01 · 会话</span>
+              <h2>选择要保存的聊天</h2>
+            </div>
+            <button id="refresh-conversations" class="icon-button" type="button" title="重新读取">↻</button>
+          </div>
+          <label class="field">
+            <span>搜索联系人或群聊</span>
+            <input id="conversation-search" type="search" placeholder="输入名称">
+          </label>
+          <label class="field">
+            <span>会话</span>
+            <select id="conversation" required>
+              <option value="">正在读取会话…</option>
+            </select>
+          </label>
+          <p id="conversation-count" class="hint"></p>
+        </section>
+
+        <section class="panel">
+          <div class="section-heading">
+            <div>
+              <span>02 · 范围</span>
+              <h2>决定要带走什么</h2>
+            </div>
+          </div>
+          <label class="switch-row">
+            <input id="all-history" type="checkbox" checked>
+            <span class="switch" aria-hidden="true"></span>
+            <span><strong>全部可访问记录</strong><small>一直加载到网页不再提供更早消息</small></span>
+          </label>
+          <div id="date-fields" class="date-grid is-disabled">
+            <label class="field"><span>开始日期</span><input id="start-date" type="date" disabled></label>
+            <label class="field"><span>结束日期</span><input id="end-date" type="date" disabled></label>
+          </div>
+
+          <fieldset>
+            <legend>消息内容</legend>
+            <div class="choice-grid">
+              <label class="choice"><input type="checkbox" data-types="0" checked><span>文字</span></label>
+              <label class="choice"><input type="checkbox" data-types="1,2,3,5" checked><span>媒体</span></label>
+              <label class="choice"><input type="checkbox" data-types="7,24" checked><span>分享</span></label>
+              <label class="choice"><input type="checkbox" data-types="25" checked><span>回复</span></label>
+              <label class="choice"><input type="checkbox" data-types="80,81" checked><span>系统</span></label>
+              <label class="choice"><input type="checkbox" data-types="4,8,20,21,22,23,26,27,99" checked><span>其他</span></label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>资源归档</legend>
+            <label class="asset-row">
+              <input id="embed-avatars" type="checkbox" checked>
+              <span><strong>嵌入成员头像</strong><small>头像直接写入 ChatLab JSON</small></span>
+            </label>
+            <label class="asset-row">
+              <input id="download-media" type="checkbox">
+              <span><strong>下载聊天媒体并生成 ZIP</strong><small>图片、表情、卡片封面和音视频</small></span>
+            </label>
+          </fieldset>
+
+          <label class="field">
+            <span>你在 ChatLab 中的名称</span>
+            <input id="self-name" type="text" value="我" maxlength="100" required>
+          </label>
+        </section>
+
+        <button id="start-export" class="button primary wide" type="submit">开始导出</button>
+      </form>
+
+      <section id="job-panel" class="job-panel" hidden aria-live="polite">
+        <div class="job-status">
+          <span id="job-icon" class="job-icon">↗</span>
+          <div>
+            <strong id="job-title">正在导出</strong>
+            <p id="job-detail">准备中…</p>
+          </div>
+        </div>
+        <div id="progress-track" class="progress-track" hidden>
+          <span id="progress-bar"></span>
+        </div>
+        <dl id="result-stats" class="result-stats" hidden>
+          <div><dt>消息</dt><dd id="result-messages">—</dd></div>
+          <div><dt>头像</dt><dd id="result-avatars">—</dd></div>
+          <div><dt>媒体</dt><dd id="result-media">—</dd></div>
+        </dl>
+      </section>
+    </main>
+
+    <footer>本机处理 · 不读取 Cookie · 不上传聊天内容</footer>
+    <script src="popup.js"></script>
+  </body>
+</html>

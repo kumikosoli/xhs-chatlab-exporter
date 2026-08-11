@@ -1,0 +1,1 @@
+xhs-chatlab-exporter Chrome/Edge extension v0.4.0

@@ -1,8 +1,8 @@
 # 小红书网页版 → ChatLab JSON 导出器
 
-在 macOS 上，从**已经登录的小红书 Safari 标签页**读取指定私聊或群聊，按时间范围加载历史消息，并导出为 [ChatLab 标准格式 v0.0.2](https://docs.chatlab.fun/cn/standard/chatlab-format) JSON。可选嵌入成员头像，或生成包含聊天图片、表情、卡片封面和音视频的 ZIP 归档。
+从**已经登录的小红书网页**读取指定私聊或群聊，按时间范围加载历史消息，并导出为 [ChatLab 标准格式 v0.0.2](https://docs.chatlab.fun/cn/standard/chatlab-format) JSON。可选嵌入成员头像，或生成包含聊天图片、表情、卡片封面和音视频的 ZIP 归档。
 
-它不使用 Computer Use，不靠截图或 OCR，也不会读取 Cookie、调用私有接口或发送消息。脚本通过 Safari 官方的 Apple Events JavaScript 能力读取当前页面 DOM。
+项目同时提供适用于 Windows、macOS、Linux 的 Chrome/Edge 扩展，以及原有的 macOS Safari 本地工具。它不使用 Computer Use，不靠截图或 OCR，也不会读取 Cookie、调用私有接口或发送消息。
 
 ## 能做什么
 
@@ -19,7 +19,32 @@
 - 输出前执行本地严格校验
 - 零运行时 npm 依赖
 
-## 环境要求
+## Chrome / Edge 扩展（Windows 推荐）
+
+仓库中的 `chrome-extension/` 是已经构建完成、可直接加载的 Manifest V3 扩展。
+
+也可以下载仓库内的 [Chrome/Edge v0.4.0 ZIP](./releases/xhs-chatlab-exporter-chrome-edge-v0.4.0.zip)，解压后再加载该文件夹。
+
+1. 下载或克隆本仓库。
+2. Chrome 打开 `chrome://extensions/`；Edge 打开 `edge://extensions/`。
+3. 开启“开发者模式”。
+4. 点击“加载已解压的扩展”，选择仓库中的整个 `chrome-extension` 文件夹。
+5. 打开并登录 `https://www.xiaohongshu.com/chat/`，进入任意聊天。
+6. 点击工具栏中的“小红书聊天归档器”，选择会话和导出范围。
+
+扩展的全部抓取、头像嵌入和 ZIP 打包都在本机浏览器中完成。关闭弹窗后，已启动的导出仍会继续；完成时由 Chrome/Edge 显示保存对话框。
+
+如需从源码重新构建：
+
+```bash
+npm install
+npm run build:extension
+npm run package:extension
+```
+
+构建目录为 `chrome-extension/`，ZIP 安装包输出到 `releases/`。最低支持 Chrome/Edge 116。
+
+## Safari 本地版环境要求
 
 - macOS
 - Safari
@@ -39,6 +64,8 @@
 如果菜单栏没有“开发”，先在 Safari 设置的高级/开发者选项中显示开发菜单。首次运行时，macOS 也可能要求允许当前终端自动化控制 Safari。
 
 ## 网页控制台（推荐）
+
+以下网页控制台属于 Safari 本地版；Windows 用户直接使用上面的 Chrome/Edge 扩展即可。
 
 在仓库目录运行：
 
@@ -256,6 +283,8 @@ chatlab import "/absolute/path/to/output.chatlab.json" --dry-run --json
 
 ## 工作方式
 
+Safari 本地版：
+
 1. 枚举 Safari 里 URL 含 `xiaohongshu.com/chat/` 的标签页。
 2. 从侧栏读取会话的名称、ID 和类型。
 3. 点击目标会话；只有给出明确 ID 且侧栏找不到时才直接导航到对应 URL。
@@ -265,23 +294,27 @@ chatlab import "/absolute/path/to/output.chatlab.json" --dry-run --json
 7. 按选项下载头像与媒体，并将本地路径写入消息。
 8. 去重、排序、过滤、校验，然后原子写入 JSON 或打包 ZIP。
 
+Chrome/Edge 扩展使用相同的 DOM 提取和 ChatLab 转换核心，但由内容脚本加载历史、扩展离屏页面下载资源并生成 Blob/ZIP，最后交给浏览器下载管理器保存，因此不需要 Safari、Apple Events 或本地 Node 服务。
+
 ## 已知限制
 
 - 依赖小红书网页版当前的 DOM 类名；网站改版后可能需要更新 `src/page-scripts.js`。
 - 只能导出网页向当前账号提供的历史记录。
 - 小红书 CDN 链接可能过期；需要永久保留媒体时应在链接仍有效时启用媒体下载。
 - 下载是否成功取决于当前网络和小红书 CDN；失败项目会写进 `media/manifest.json`。
+- Chrome/Edge 扩展为避免浏览器内存耗尽，将单次媒体归档限制为约 768 MiB；超大记录建议分日期导出。
 - 页面没有提供引用消息的原始消息 ID，因此回复会映射为 `type: 25` 并把引用文字写入 `content`，但不会伪造 `replyToMessageId`。
 - JSON 适合少于约一百万条消息的中小型记录。ChatLab 规范建议更大的记录使用 JSONL；当前版本按需求只生成 JSON。
 
 ## 隐私与安全
 
-- 不读取或导出 Safari Cookie
+- 不读取或导出浏览器 Cookie
 - 不拦截网络请求
 - 不调用小红书未公开 API
 - 不点击发送按钮，不修改聊天
 - 不上传聊天内容
 - 网页控制台只绑定本机回环地址，并用随机令牌保护导出和登录操作
+- Chrome/Edge 扩展仅申请小红书页面、静态资源域名、下载、离屏打包和本地设置权限
 - 实际聊天文件已被 `.gitignore` 排除
 
 请只导出你有权保存和处理的聊天记录，并妥善保管输出文件。

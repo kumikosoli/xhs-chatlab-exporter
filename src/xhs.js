@@ -1,10 +1,9 @@
-import { createHash } from "node:crypto";
-
 import { assertValidChatLab } from "./chatlab.js";
+import { sha256Hex } from "./sha256.js";
 import { decodeXhsMessageTimestamp } from "./time.js";
 
 function digest(value) {
-  return createHash("sha256").update(String(value)).digest("hex").slice(0, 20);
+  return sha256Hex(String(value)).slice(0, 20);
 }
 
 function avatarIdentity(avatar) {
@@ -280,7 +279,7 @@ export function toChatLab(rawMessages, {
     chatlab: {
       version: "0.0.2",
       exportedAt,
-      generator: "xhs-chatlab-exporter/0.3.0"
+      generator: "xhs-chatlab-exporter/0.4.0"
     },
     meta,
     members: Array.from(members.values()),

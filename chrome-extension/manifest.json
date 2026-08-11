@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "小红书聊天归档器 for ChatLab",
+  "short_name": "聊天归档器",
+  "version": "0.4.0",
+  "minimum_chrome_version": "116",
+  "description": "从已登录的小红书网页导出 ChatLab JSON、头像和聊天媒体。",
+  "permissions": [
+    "activeTab",
+    "downloads",
+    "offscreen",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.xiaohongshu.com/*",
+    "https://*.xiaohongshu.com/*",
+    "https://*.xhscdn.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "小红书聊天归档器",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.xiaohongshu.com/chat*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}
